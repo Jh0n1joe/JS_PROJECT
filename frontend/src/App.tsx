@@ -1,122 +1,178 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// frontend/src/App.tsx
+import { useState, useEffect } from 'react';
+import { Clock, ShoppingBag } from 'lucide-react';
+import { Navbar } from './components/Navbar';
+import { Hero } from './components/Hero';
+import { OfferCard } from './components/OfferCard';
+import { ProductDetailModal } from './components/ProductDetailModal';
+import { Checkout } from './components/Checkout';
+import { OrderTrackingModal } from './components/OrderTrackingModal';
+import { PRODUCTOS_MOCK } from './data/mockProductos';
+import type { Producto } from './types';
+import { useCartStore } from './store/useCartStore';
 
-function App() {
-  const [count, setCount] = useState(0)
+export function App() {
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
+  const [view, setView] = useState<'home' | 'checkout'>('home');
+  const [showTracking, setShowTracking] = useState(false);
+  
+  const cart = useCartStore((state) => state.cart);
+  const clearCart = useCartStore((state) => state.clearCart);
 
+  // Cálculos del carrito para el widget flotante
+  const totalUSD = cart.reduce((acc, item) => acc + item.producto.precio_usd * item.cantidad, 0);
+  const totalItems = cart.reduce((acc, item) => acc + item.cantidad, 0);
+
+  // Temporizador para "Ofertas de Medianoche"
+  const [timeLeft, setTimeLeft] = useState({ hours: 3, minutes: 45, seconds: 8 });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
+        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatNumber = (num: number) => num.toString().padStart(2, '0');
+
+  // VISTA 2: FLUJO DE CHECKOUT + MODAL DE SEGUIMIENTO
+  if (view === 'checkout') {
+    return (
+      <>
+        <Checkout
+          onBack={() => setView('home')}
+          onConfirmOrder={() => {
+            setShowTracking(true);
+          }}
+        />
+
+        {showTracking && (
+          <OrderTrackingModal
+            onClose={() => {
+              setShowTracking(false);
+              clearCart(); // Limpia el carrito al completar el pedido
+              setView('home');
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  // VISTA 1: CATÁLOGO Y PANTALLA PRINCIPAL
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="min-h-screen bg-[#0d0c0a] text-neutral-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-neutral-950">
+      <div>
+        {/* Navbar Superior */}
+        <Navbar />
 
-      <div className="ticks"></div>
+        {/* Hero Banner */}
+        <Hero />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {/* Sección Ofertas de Medianoche */}
+        <main className="max-w-7xl mx-auto px-6 py-12">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 border-b border-[#262016] pb-6">
+            <div>
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-xl md:text-2xl">
+                <Clock size={24} />
+                <h2>Ofertas de Medianoche</h2>
+              </div>
+              <p className="text-neutral-500 text-xs md:text-sm mt-1">
+                Precios exclusivos que desaparecen al amanecer.
+              </p>
+            </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+            {/* Reloj Cuenta Regresiva */}
+            <div className="bg-[#181510] border border-[#2e2619] rounded-xl px-4 py-2 flex items-center gap-3 self-start md:self-auto">
+              <span className="text-neutral-400 text-xs font-semibold uppercase tracking-wider">
+                Termina en:
+              </span>
+              <div className="flex items-center gap-1 font-mono font-bold text-amber-400 text-base">
+                <span className="bg-[#0b0a08] px-2 py-1 rounded border border-[#382f1f]">
+                  {formatNumber(timeLeft.hours)}
+                </span>
+                <span>:</span>
+                <span className="bg-[#0b0a08] px-2 py-1 rounded border border-[#382f1f]">
+                  {formatNumber(timeLeft.minutes)}
+                </span>
+                <span>:</span>
+                <span className="bg-[#0b0a08] px-2 py-1 rounded border border-[#382f1f]">
+                  {formatNumber(timeLeft.seconds)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Grid de Productos */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {PRODUCTOS_MOCK.map((prod) => (
+              <OfferCard
+                key={prod.id}
+                producto={prod}
+                onSelect={(p) => setSelectedProduct(p)}
+              />
+            ))}
+          </div>
+        </main>
+      </div>
+
+      {/* Widget Flotante del Carrito -> Cambia a Checkout */}
+      {totalItems > 0 && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => setView('checkout')}
+            className="bg-[#1a1712] border border-amber-500/40 text-white rounded-full p-2.5 pr-6 shadow-2xl flex items-center gap-3 hover:border-amber-400 transition-all group backdrop-blur-md"
+          >
+            <div className="relative bg-amber-400 text-neutral-950 p-3 rounded-full font-black flex items-center justify-center">
+              <ShoppingBag size={20} />
+              <span className="absolute -top-1 -right-1 bg-neutral-950 text-amber-400 text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-amber-400">
+                {totalItems}
+              </span>
+            </div>
+            <div className="text-left">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-400 block font-semibold">
+                Total
+              </span>
+              <span className="text-amber-400 font-black text-lg leading-tight">
+                ${totalUSD.toFixed(2)}
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Modal Detalle de Producto */}
+      {selectedProduct && (
+        <ProductDetailModal
+          producto={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+
+      {/* Footer */}
+      <footer className="bg-[#080706] border-t border-[#1f1a12] py-8 px-6 mt-16 text-neutral-500 text-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <span className="text-white font-bold text-sm tracking-tight">
+              Pana<span className="text-amber-400">Drink</span>
+            </span>
+            <p className="mt-1">© 2026 PanaDrink Delivery. Premium Spirits 24/7.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <button className="hover:text-neutral-300 transition-colors">Terms of Service</button>
+            <button className="hover:text-neutral-300 transition-colors">Privacy Policy</button>
+            <button className="hover:text-neutral-300 transition-colors">Contact Support</button>
+            <button className="hover:text-neutral-300 transition-colors">Delivery Areas</button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
 }
 
-export default App
+export default App;
