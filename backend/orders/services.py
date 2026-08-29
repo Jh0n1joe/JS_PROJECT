@@ -1,10 +1,15 @@
 from decimal import Decimal, InvalidOperation
+import logging
+from html import escape
+import os
 
 import requests
 from bs4 import BeautifulSoup
+from django.conf import settings
 
 
 BCV_URL = 'https://www.bcv.org.ve/'
+logger = logging.getLogger(__name__)
 
 
 def obtener_tasa_bcv():
@@ -36,3 +41,56 @@ def obtener_tasa_bcv():
 	if valor <= 0:
 		raise RuntimeError('El BCV devolvió una tasa no válida.')
 	return valor
+
+
+def enviar_notificacion_telegram(pedido):
+	"""Notifica un pedido confirmado sin afectar su persistencia si Telegram falla."""
+	token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+	chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', '')
+	token = token or os.getenv('TELEGRAM_BOT_TOKEN', '')
+	chat_id = chat_id or os.getenv('TELEGRAM_CHAT_ID', '')
+	if not token or not chat_id:
+		logger.warning('Telegram no configurado; se omite la notificación del pedido %s.', pedido.pk)
+		return False
+
+	detalles = pedido.detalles.select_related('producto').all()
+	lineas = [
+		f'{detalle.cantidad} x {escape(detalle.producto.nombre)} = '
+		f'{detalle.precio_unitario_usd * detalle.cantidad:.2f} USD'
+		for detalle in detalles
+	]
+	comprobante = ''
+	if pedido.metodo_pago == pedido.MetodoPago.PAGO_MOVIL:
+		pago = getattr(pedido, 'comprobante', None)
+		if pago:
+			comprobante = (
+				f'\n<b>Comprobante:</b> {escape(pago.banco_origen)} | '
+				f'Referencia: {escape(pago.numero_referencia)}'
+			)
+
+	mensaje = (
+		f'<b>NUEVO PEDIDO #{pedido.pk}</b>\n'
+		f'<b>Fecha:</b> {pedido.fecha_creacion:%d/%m/%Y %H:%M}\n\n'
+		f'<b>Cliente:</b> {escape(pedido.nombre_cliente)}\n'
+		f'<b>Teléfono:</b> {escape(pedido.telefono)}\n'
+		f'<b>Dirección:</b> {escape(pedido.direccion_entrega)}\n'
+		f'<b>Referencia:</b> {escape(pedido.referencia_ubicacion or "N/A")}\n\n'
+		f'<b>Productos:</b>\n{"\n".join(lineas)}\n\n'
+		f'<b>Total USD:</b> {pedido.monto_total_usd:.2f}\n'
+		f'<b>Total Bs:</b> {pedido.monto_total_bs:.2f}\n'
+		f'<b>Tasa usada:</b> {pedido.tasa_cambio_usada:.6f}\n'
+		f'<b>Método de pago:</b> {pedido.get_metodo_pago_display()}'
+		f'{comprobante}'
+	)
+
+	try:
+		response = requests.post(
+			f'https://api.telegram.org/bot{token}/sendMessage',
+			json={'chat_id': chat_id, 'text': mensaje, 'parse_mode': 'HTML'},
+			timeout=10,
+		)
+		response.raise_for_status()
+		return True
+	except Exception:
+		logger.exception('Falló la notificación Telegram del pedido %s.', pedido.pk)
+		return False

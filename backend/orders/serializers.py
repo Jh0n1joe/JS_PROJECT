@@ -84,6 +84,9 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        if attrs['metodo_pago'] == Pedido.MetodoPago.PAGO_MOVIL and 'comprobante' not in attrs:
+        metodo_pago = attrs['metodo_pago']
+        if metodo_pago == Pedido.MetodoPago.PAGO_MOVIL and 'comprobante' not in attrs:
             raise serializers.ValidationError({'comprobante': 'Es obligatorio para Pago Móvil.'})
+        if metodo_pago == Pedido.MetodoPago.EFECTIVO and 'comprobante' in attrs:
+            raise serializers.ValidationError({'comprobante': 'Solo aplica para Pago Móvil.'})
         return attrs
