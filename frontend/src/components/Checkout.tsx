@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { TASA_BCV } from '../data/mockProductos';
+import { supabase } from '../lib/supabaseClient';
 
 interface Props {
   onBack: () => void;
@@ -29,6 +30,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
   const [phone, setPhone] = useState('');
   const [instructions, setInstructions] = useState('');
   const [loadingGps, setLoadingGps] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const subtotalUSD = cart.reduce((acc, item) => acc + item.producto.precio_usd * item.cantidad, 0);
   const deliveryUSD = cart.length > 0 ? 3.00 : 0.00;
@@ -82,9 +84,45 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirmOrder();
+    setSubmitting(true);
+
+    try {
+      // Formatear totalBs string ("1.250,50") a float (1250.50)
+      const numericBs = parseFloat(
+        totalBs.replace(/\./g, '').replace(',', '.')
+      );
+
+      // Inserción en la tabla orders de Supabase
+      const { error } = await supabase.from('orders').insert([
+        {
+          full_address: address,
+          apt: apt || null,
+          phone: phone,
+          instructions: instructions || null,
+          payment_method: paymentMethod,
+          subtotal: subtotalUSD,
+          delivery_fee: deliveryUSD,
+          total_usd: totalUSD,
+          total_bs: isNaN(numericBs) ? 0 : numericBs,
+          status: 'pending',
+        },
+      ]);
+
+      if (error) {
+        console.error('Error de Supabase:', error);
+        alert('Error al guardar el pedido: ' + error.message);
+        return;
+      }
+
+      onConfirmOrder();
+    } catch (err) {
+      console.error('Error inesperado:', err);
+      alert('Ocurrió un error inesperado al procesar el pedido.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -340,7 +378,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleCopy('J123456789', 'rif')}
+                          onClick={() => handleCopy('J32765839', 'rif')}
                           className="text-neutral-400 hover:text-amber-400 transition-colors"
                         >
                           {copiedField === 'rif' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
@@ -396,10 +434,20 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                 {/* Botón Pagar */}
                 <button
                   type="submit"
-                  className="w-full mt-6 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-500/10 text-base"
+                  disabled={submitting}
+                  className="w-full mt-6 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-neutral-950 font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-500/10 text-base"
                 >
-                  Confirmar y Pagar
-                  <Check size={20} />
+                  {submitting ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin text-neutral-950" />
+                      Guardando pedido...
+                    </>
+                  ) : (
+                    <>
+                      Confirmar y Pagar
+                      <Check size={20} />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
