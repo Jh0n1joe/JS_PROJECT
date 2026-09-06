@@ -6,15 +6,17 @@ export interface Maridaje {
 export interface Producto {
   id: number;
   nombre: string;
-  categoria: 'whiskey' | 'wine' | 'rum' | 'beer' | 'mixers';
+  categoria: string;
   subcategoria?: string;
-  descripcion: string;
+  descripcion?: string;
   precio_usd: number;
+  precio_bs?: number;
   precio_anterior_usd?: number;
   descuento_porcentaje?: number;
   stock: number;
-  imagen_url: string;
-  disponible_247: boolean;
+  imagen?: string; // 👈 Campo corregido coincidente con el JSON de Django
+  imagen_url?: string; // 👈 Mantener opcional por compatibilidad
+  disponible_247?: boolean;
   maridajes?: Maridaje[];
 }
 

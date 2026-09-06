@@ -1,4 +1,3 @@
-// frontend/src/App.tsx
 import { useState, useEffect } from 'react';
 import { Clock, ShoppingBag } from 'lucide-react';
 import { Navbar } from './components/Navbar';
@@ -7,17 +6,49 @@ import { OfferCard } from './components/OfferCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
-import { PRODUCTOS_MOCK } from './data/mockProductos';
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
 
 export function App() {
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [view, setView] = useState<'home' | 'checkout'>('home');
   const [showTracking, setShowTracking] = useState(false);
   
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
+
+  // Cargar productos desde la API de Django
+useEffect(() => {
+  const fetchProductos = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/productos/');
+      if (!response.ok) {
+        throw new Error('Error al obtener la lista de productos');
+      }
+      const data = await response.json();
+      
+      // Formatear los precios de String a Number para evitar que React falle
+      const productosFormateados = data.map((prod: any) => ({
+        ...prod,
+        precio_usd: parseFloat(prod.precio_usd) || 0,
+        precio_bs: parseFloat(prod.precio_bs) || 0,
+      }));
+
+      setProductos(productosFormateados);
+    } catch (err: any) {
+      console.error(err);
+      setError('No se pudieron cargar los productos del servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProductos();
+}, []);
 
   // Cálculos del carrito para el widget flotante
   const totalUSD = cart.reduce((acc, item) => acc + item.producto.precio_usd * item.cantidad, 0);
@@ -108,20 +139,34 @@ export function App() {
             </div>
           </div>
 
-          {/* Grid de Productos */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {PRODUCTOS_MOCK.map((prod) => (
-              <OfferCard
-                key={prod.id}
-                producto={prod}
-                onSelect={(p) => setSelectedProduct(p)}
-              />
-            ))}
-          </div>
+          {/* Grid de Productos Cargados desde Django */}
+          {loading ? (
+            <div className="text-center py-12 text-amber-400 font-bold">
+              Cargando catálogo desde el servidor...
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-500 font-semibold">
+              {error}
+            </div>
+          ) : productos.length === 0 ? (
+            <div className="text-center py-12 text-neutral-400">
+              No hay productos disponibles en el catálogo.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {productos.map((prod) => (
+                <OfferCard
+                  key={prod.id}
+                  producto={prod}
+                  onSelect={(p) => setSelectedProduct(p)}
+                />
+              ))}
+            </div>
+          )}
         </main>
       </div>
 
-      {/* Widget Flotante del Carrito -> Cambia a Checkout */}
+      {/* Widget Flotante del Carrito */}
       {totalItems > 0 && (
         <div className="fixed bottom-6 right-6 z-40">
           <button

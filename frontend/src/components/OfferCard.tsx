@@ -21,15 +21,18 @@ export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
           </span>
         )}
 
-        {/* Imagen centrada y clickable */}
+        {/* Imagen centrada y clickable (ACTUALIZADO) */}
         <div 
           onClick={() => onSelect(producto)}
           className="h-44 flex items-center justify-center p-2 cursor-pointer bg-[#0e0d0a] rounded-xl overflow-hidden mb-4"
         >
           <img
-            src={producto.imagen_url}
+            src={producto.imagen || producto.imagen_url || "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500"}
             alt={producto.nombre}
             className="max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500";
+            }}
           />
         </div>
 
