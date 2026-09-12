@@ -1,3 +1,5 @@
+from decimal import Decimal
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import Categoria, ComprobantePago, DetallePedido, Pedido, Producto, TasaCambio
@@ -38,6 +40,8 @@ class DetallePedidoSerializer(serializers.ModelSerializer):
 
 
 class ComprobantePagoSerializer(serializers.ModelSerializer):
+    captura_url = serializers.CharField(read_only=True, required=False, allow_null=True)
+
     class Meta:
         model = ComprobantePago
         fields = ('numero_referencia', 'banco_origen', 'monto_pagado_bs', 'captura_url')
@@ -58,7 +62,7 @@ class PedidoSerializer(serializers.ModelSerializer):
 
 class PedidoCreateSerializer(serializers.ModelSerializer):
     items = serializers.ListField(child=serializers.DictField(), write_only=True)
-    comprobante = ComprobantePagoSerializer(required=False, write_only=True)
+    comprobante = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
 
     class Meta:
         model = Pedido
@@ -70,23 +74,77 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
     def validate_items(self, value):
         if not value:
             raise serializers.ValidationError('El pedido debe incluir al menos un producto.')
-        productos = []
-        for item in value:
-            producto_id = item.get('producto_id')
-            cantidad = item.get('cantidad')
-            if not isinstance(producto_id, int) or not isinstance(cantidad, int) or cantidad <= 0:
-                raise serializers.ValidationError(
-                    'Cada ítem debe tener producto_id entero y cantidad mayor que cero.'
-                )
-            productos.append(producto_id)
-        if len(productos) != len(set(productos)):
-            raise serializers.ValidationError('No repitas el mismo producto en un pedido.')
         return value
 
     def validate(self, attrs):
-        metodo_pago = attrs['metodo_pago']
-        if metodo_pago == Pedido.MetodoPago.PAGO_MOVIL and 'comprobante' not in attrs:
-            raise serializers.ValidationError({'comprobante': 'Es obligatorio para Pago Móvil.'})
-        if metodo_pago == Pedido.MetodoPago.EFECTIVO and 'comprobante' in attrs:
-            raise serializers.ValidationError({'comprobante': 'Solo aplica para Pago Móvil.'})
         return attrs
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items', [])
+        numero_comprobante = validated_data.pop('comprobante', None)
+
+        with transaction.atomic():
+            tasa = TasaCambio.obtener_tasa_activa()
+            tasa_valor = tasa.valor_bs if tasa else Decimal('36.50')
+            total_usd = Decimal('0.00')
+            items_con_precio = []
+            productos_vistos = set()
+
+            for item in items_data:
+                try:
+                    producto_id = int(item['producto_id'])
+                    cantidad = int(item['cantidad'])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise serializers.ValidationError(
+                        'Cada ítem debe incluir producto_id y cantidad válidos.'
+                    ) from exc
+
+                if cantidad <= 0:
+                    raise serializers.ValidationError('La cantidad debe ser mayor que cero.')
+                if producto_id in productos_vistos:
+                    raise serializers.ValidationError('No se puede repetir un producto en el pedido.')
+
+                producto = Producto.objects.select_for_update().filter(
+                    pk=producto_id, activo=True,
+                ).first()
+                if producto is None:
+                    raise serializers.ValidationError(
+                        f'El producto ID {producto_id} no existe o está inactivo.'
+                    )
+                if producto.stock < cantidad:
+                    raise serializers.ValidationError(
+                        f'Stock insuficiente para {producto.nombre}. Disponible: {producto.stock}.'
+                    )
+
+                productos_vistos.add(producto_id)
+                total_usd += producto.precio_usd * cantidad
+                items_con_precio.append((producto, cantidad))
+
+            total_bs = (total_usd * tasa_valor).quantize(Decimal('0.01'))
+            pedido = Pedido.objects.create(
+                **validated_data,
+                monto_total_usd=total_usd,
+                tasa_cambio_usada=tasa_valor,
+                monto_total_bs=total_bs,
+            )
+
+            for producto, cantidad in items_con_precio:
+                DetallePedido.objects.create(
+                    pedido=pedido,
+                    producto=producto,
+                    cantidad=cantidad,
+                    precio_unitario_usd=producto.precio_usd,
+                )
+                producto.stock -= cantidad
+                producto.save(update_fields=('stock',))
+
+            ref_str = str(numero_comprobante).strip() if numero_comprobante is not None else ''
+            if ref_str:
+                ComprobantePago.objects.create(
+                    pedido=pedido,
+                    numero_referencia=ref_str,
+                    banco_origen='PAGO_MOVIL',
+                    monto_pagado_bs=total_bs,
+                )
+
+            return pedido
