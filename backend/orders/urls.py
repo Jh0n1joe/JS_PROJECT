@@ -1,5 +1,4 @@
 from django.urls import path
-
 from .views import CrearPedidoView, ProductoListView, TasaCambioView
 
 urlpatterns = [

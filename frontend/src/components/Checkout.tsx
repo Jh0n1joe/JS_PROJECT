@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { TASA_BCV } from '../data/mockProductos';
-import { supabase } from '../lib/supabaseClient';
 
 interface Props {
   onBack: () => void;
@@ -27,8 +26,10 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
   // Datos del formulario
   const [address, setAddress] = useState('');
   const [apt, setApt] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [comprobante, setComprobante] = useState('');
   const [loadingGps, setLoadingGps] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -86,34 +87,41 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (paymentMethod === 'pago_movil' && !/^\d{4}$/.test(comprobante)) {
+      alert('Ingresa exactamente los últimos 4 dígitos del comprobante de Pago Móvil.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // Formatear totalBs string ("1.250,50") a float (1250.50)
-      const numericBs = parseFloat(
-        totalBs.replace(/\./g, '').replace(',', '.')
-      );
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const response = await fetch(`${apiUrl}/api/pedidos/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre_cliente: customerName,
+          telefono: phone,
+          direccion_entrega: address,
+          referencia_ubicacion: [apt, instructions].filter(Boolean).join(' | '),
+          metodo_pago: paymentMethod === 'pago_movil'
+            ? 'PAGO_MOVIL'
+            : paymentMethod === 'zelle'
+              ? 'ZELLE'
+              : 'EFECTIVO',
+          items: cart.map((item) => ({
+            producto_id: item.producto.id,
+            cantidad: item.cantidad,
+          })),
+          comprobante: paymentMethod === 'pago_movil' ? comprobante : null,
+        }),
+      });
 
-      // Inserción en la tabla orders de Supabase
-      const { error } = await supabase.from('orders').insert([
-        {
-          full_address: address,
-          apt: apt || null,
-          phone: phone,
-          instructions: instructions || null,
-          payment_method: paymentMethod,
-          subtotal: subtotalUSD,
-          delivery_fee: deliveryUSD,
-          total_usd: totalUSD,
-          total_bs: isNaN(numericBs) ? 0 : numericBs,
-          status: 'pending',
-        },
-      ]);
-
-      if (error) {
-        console.error('Error de Supabase:', error);
-        alert('Error al guardar el pedido: ' + error.message);
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const detail = errorData?.detail || Object.values(errorData || {}).flat().join(' ');
+        throw new Error(detail || 'No se pudo guardar el pedido.');
       }
 
       onConfirmOrder();
@@ -159,6 +167,20 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
 
                 <div className="flex flex-col gap-4">
                   {/* FULL ADDRESS CON BOTÓN DE MIRA GPS */}
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-400 mb-1.5 uppercase tracking-wider">
+                      Customer Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Full name"
+                      className="w-full bg-[#1e1b15] border border-[#332b1c] rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400 transition-colors"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-neutral-400 mb-1.5 uppercase tracking-wider">
                       Full Address
@@ -383,6 +405,30 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         >
                           {copiedField === 'rif' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                         </button>
+                      </div>
+
+                      <div>
+                        <label htmlFor="comprobante" className="text-neutral-300 block mb-1.5 font-semibold">
+                          Últimos 4 dígitos del comprobante
+                        </label>
+                        <input
+                          id="comprobante"
+                          name="comprobante"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]{4}"
+                          minLength={4}
+                          maxLength={4}
+                          required={paymentMethod === 'pago_movil'}
+                          value={comprobante}
+                          onChange={(event) => setComprobante(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="Ej. 4821"
+                          aria-describedby="comprobante-help"
+                          className="w-full bg-[#0e0d0a] border border-[#332b1c] rounded-lg px-3 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
+                        />
+                        <span id="comprobante-help" className="text-neutral-500 block mt-1">
+                          Debe contener exactamente 4 dígitos.
+                        </span>
                       </div>
                     </div>
                   </div>
