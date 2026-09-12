@@ -10,6 +10,11 @@ class TasaCambio(models.Model):
 	fecha = models.DateTimeField(auto_now_add=True)
 	fecha_registro = models.DateTimeField(auto_now_add=True)
 
+	@classmethod
+	def obtener_tasa_activa(cls):
+		# Retorna la tasa de cambio activa más reciente
+		return cls.objects.filter(es_activa=True).order_by('-fecha').first()
+
 	class Meta:
 		ordering = ('-fecha',)
 		verbose_name = 'tasa de cambio'
@@ -105,18 +110,31 @@ class Pedido(models.Model):
 
 
 class DetallePedido(models.Model):
-	pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='detalles')
-	producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='detalles_pedido')
-	cantidad = models.PositiveIntegerField()
-	precio_unitario_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
+    cantidad = models.PositiveIntegerField(default=1)
 
-	class Meta:
-		constraints = [
-			models.UniqueConstraint(fields=('pedido', 'producto'), name='detalle_producto_unico_por_pedido'),
-		]
+    # Permitir que en el formulario quede vacío temporalmente
+    precio_unitario_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
 
-	def __str__(self):
-		return f'{self.cantidad} x {self.producto.nombre}'
+    def save(self, *args, **kwargs):
+        # Si no se colocó un precio manual, asigna el precio actual del producto
+        if not self.precio_unitario_usd and self.producto:
+            self.precio_unitario_usd = getattr(self.producto, 'precio_usd', 0) or getattr(self.producto, 'precio', 0)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['pedido', 'producto'], name='detalle_producto_unico')
+        ]
+
+    def __str__(self):
+        return f'{self.cantidad} x {self.producto.nombre}'
 
 
 class ComprobantePago(models.Model):
