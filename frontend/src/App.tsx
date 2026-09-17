@@ -115,13 +115,15 @@ export function App() {
 
   const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
-  // VISTA 2: FLUJO DE CHECKOUT + MODAL DE SEGUIMIENTO
+  // VISTA 2: FLUJO DE CHECKOUT
   if (view === 'checkout') {
     return (
       <>
         <Checkout
           onBack={() => setView('home')}
           onConfirmOrder={() => {
+            // Regresa al catálogo y abre el modal de rastreo inmediatamente
+            setView('home');
             setShowTracking(true);
           }}
         />

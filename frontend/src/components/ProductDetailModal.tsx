@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Minus, Plus, X, Utensils, Flame, Cookie } from 'lucide-react';
+import { ShoppingBag, Minus, Plus, X, Utensils, Flame, Cookie, Nut, Cigarette } from 'lucide-react';
 import type { Producto } from '../types';
 import { TASA_BCV } from '../data/mockProductos';
 import { useCartStore } from '../store/useCartStore';
@@ -31,6 +31,24 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
   const handleAddToCart = () => {
     addToCart(producto, cantidad);
     onClose();
+  };
+
+  // Función helper para resolver el icono dinámicamente
+  const renderMaridajeIcon = (tipo: string) => {
+    switch (tipo?.toLowerCase()) {
+      case 'chocolate':
+        return <Cookie size={18} className="text-amber-400" />;
+      case 'humo':
+        return <Cigarette size={18} className="text-amber-400" />;
+      case 'frituras':
+        return <Utensils size={18} className="text-amber-400" />;
+      case 'frutos_secos':
+        return <Nut size={18} className="text-amber-400" />;
+      case 'carne':
+        return <Flame size={18} className="text-amber-400" />;
+      default:
+        return <Utensils size={18} className="text-amber-400" />;
+    }
   };
 
   return (
@@ -116,7 +134,7 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
               <p className="text-xs text-neutral-400 leading-relaxed">{producto.descripcion}</p>
             </div>
 
-            {producto.maridajes && (
+            {producto.maridajes && producto.maridajes.length > 0 && (
               <div className="mt-5">
                 <h4 className="text-sm font-bold text-neutral-200 mb-2">Sugerencias de Maridaje</h4>
                 <div className="grid grid-cols-3 gap-3">
@@ -125,9 +143,7 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
                       key={idx}
                       className="bg-[#1c1913] border border-[#2c2518] rounded-xl p-2.5 flex flex-col items-center justify-center text-center gap-1.5"
                     >
-                      {m.tipo === 'chocolate' && <Cookie size={18} className="text-amber-400" />}
-                      {m.tipo === 'habano' && <Flame size={18} className="text-amber-400" />}
-                      {m.tipo === 'carne' && <Utensils size={18} className="text-amber-400" />}
+                      {renderMaridajeIcon(m.tipo)}
                       <span className="text-[11px] text-neutral-300 font-medium">{m.nombre}</span>
                     </div>
                   ))}

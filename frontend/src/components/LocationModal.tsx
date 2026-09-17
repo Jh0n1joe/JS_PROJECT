@@ -8,14 +8,14 @@ interface LocationModalProps {
   onClose: () => void;
 }
 
-const ZONAS_CARACAS = [
-  'Chacao, Caracas',
-  'Las Mercedes, Caracas',
-  'Altamira, Caracas',
-  'Los Palos Grandes, Caracas',
-  'El Hatillo, Caracas',
-  'Baruta, Caracas',
-  'La Castellana, Caracas',
+const ZONAS_BARCELONA = [
+  'Nueva Barcelona, Barcelona',
+  'Lechería / Urb. El Morro',
+  'Centro, Barcelona',
+  'Av. Intercomunal / Las Garzas',
+  'Boyacá I, II y III, Barcelona',
+  'Colinas de Neverí, Barcelona',
+  'Puerto La Cruz (Zona Baja)',
 ];
 
 export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose }) => {
@@ -32,7 +32,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose })
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (customInput.trim()) {
-      setLocation(`${customInput.trim()}, Caracas`);
+      setLocation(`${customInput.trim()}, Barcelona`);
       setCustomInput('');
       onClose();
     }
@@ -44,7 +44,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose })
         {/* Botón Cerrar */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-neutral-400 hover:text-white p-1 rounded-lg transition-colors"
+          className="absolute top-4 right-4 text-neutral-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
         >
           <X size={20} />
         </button>
@@ -55,7 +55,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose })
           </div>
           <div>
             <h3 className="text-white font-bold text-lg">¿Dónde entregamos?</h3>
-            <p className="text-xs text-neutral-400">Selecciona tu zona de delivery en Caracas</p>
+            <p className="text-xs text-neutral-400">Selecciona tu zona de delivery en Barcelona / Lechería</p>
           </div>
         </div>
 
@@ -64,14 +64,14 @@ export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose })
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Ej: Concresa, Prados del Este..."
+              placeholder="Ej: Urb. Fundalara, Av. Caracas..."
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
               className="flex-1 bg-[#1c1914] border border-[#2e2619] rounded-xl px-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
             />
             <button
               type="submit"
-              className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors"
+              className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
             >
               Guardar
             </button>
@@ -84,13 +84,13 @@ export const LocationModal: React.FC<LocationModalProps> = ({ isOpen, onClose })
 
         {/* Lista de Zonas */}
         <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-          {ZONAS_CARACAS.map((zone) => {
+          {ZONAS_BARCELONA.map((zone) => {
             const isSelected = currentLocation === zone;
             return (
               <button
                 key={zone}
                 onClick={() => handleSelect(zone)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
                     : 'bg-[#181510] border-[#252016] text-neutral-300 hover:border-[#3d3323] hover:text-white'
