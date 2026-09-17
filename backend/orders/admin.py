@@ -1,13 +1,27 @@
 from django.contrib import admin
 from django.contrib import messages
-from .models import Categoria, ComprobantePago, DetallePedido, Pedido, Producto, TasaCambio
+from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, TasaCambio
 
 admin.site.register(TasaCambio)
 admin.site.register(Categoria)
-admin.site.register(Producto)
 admin.site.register(ComprobantePago)
 
 
+# --- INLINE Y ADMIN PARA PRODUCTO ---
+class MaridajeInline(admin.TabularInline):
+    model = Maridaje
+    extra = 1  # Fila vacía para agregar un nuevo maridaje rápidamente
+
+
+@admin.register(Producto)
+class ProductoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'categoria', 'precio_usd', 'stock', 'activo')
+    list_filter = ('categoria', 'activo')
+    search_fields = ('nombre', 'descripcion')
+    inlines = [MaridajeInline]
+
+
+# --- INLINE Y ADMIN PARA PEDIDO ---
 class DetallePedidoInline(admin.TabularInline):
     model = DetallePedido
     extra = 1
@@ -56,7 +70,7 @@ class PedidoAdmin(admin.ModelAdmin):
 
         # 3. Recorrer los productos guardados para fijar precio unitario y calcular total
         total_usd = 0
-        for detalle in pedido.detallepedido_set.all():
+        for detalle in pedido.detalles.all():
             if detalle.producto:
                 # Asigna el precio del producto si no se ingresó uno manual
                 if not detalle.precio_unitario_usd:

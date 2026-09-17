@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Categoria, ComprobantePago, DetallePedido, Pedido, Producto, TasaCambio
+from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, TasaCambio
 
 
 class TasaCambioSerializer(serializers.ModelSerializer):
@@ -18,13 +18,30 @@ class CategoriaSerializer(serializers.ModelSerializer):
         fields = ('id', 'nombre')
 
 
+class MaridajeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Maridaje
+        fields = ('id', 'tipo', 'nombre')
+
+
 class ProductoSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source='categoria.nombre', read_only=True)
     precio_bs = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    maridajes = MaridajeSerializer(many=True, read_only=True)  # Anida los maridajes del producto
 
     class Meta:
         model = Producto
-        fields = ('id', 'nombre', 'categoria', 'stock', 'precio_usd', 'precio_bs', 'imagen')
+        fields = (
+            'id',
+            'nombre',
+            'descripcion',  # <-- Agregado
+            'categoria',
+            'stock',
+            'precio_usd',
+            'precio_bs',
+            'imagen',
+            'maridajes',    # <-- Agregado
+        )
 
 
 class DetallePedidoSerializer(serializers.ModelSerializer):

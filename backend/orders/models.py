@@ -49,11 +49,12 @@ class Categoria(models.Model):
 
 class Producto(models.Model):
     nombre = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True, null=True, verbose_name="Descripción")
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='productos')
     stock = models.PositiveIntegerField(default=0)
     precio_usd = models.DecimalField(max_digits=10, decimal_places=2)
     activo = models.BooleanField(default=True)
-    imagen = models.URLField(max_length=500, blank=True, null=True)  # Optional image field
+    imagen = models.URLField(max_length=500, blank=True, null=True)
 
     class Meta:
         ordering = ('nombre',)
@@ -69,6 +70,25 @@ class Producto(models.Model):
         if tasa is None:
             raise TasaCambio.DoesNotExist('No existe una tasa de cambio activa configurada.')
         return (self.precio_usd * tasa.valor_bs).quantize(Decimal('0.01'))
+
+
+class Maridaje(models.Model):
+    class TipoMaridaje(models.TextChoices):
+        CHOCOLATE = 'chocolate', 'Chocolate / Dulces'
+        HUMO = 'humo', 'Humo'
+        FRITURAS = 'frituras', 'Frituras / Pasapalos'
+        FRUTOS_SECOS = 'frutos_secos', 'Frutos Secos'
+
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='maridajes')
+    tipo = models.CharField(max_length=30, choices=TipoMaridaje.choices)
+    nombre = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = 'maridaje'
+        verbose_name_plural = 'maridajes'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.tipo}) - {self.producto.nombre}'
 
 
 class Pedido(models.Model):
@@ -115,7 +135,6 @@ class DetallePedido(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        # Si no se colocó un precio manual, asigna el precio actual del producto
         if self.precio_unitario_usd is None and self.producto_id:
             self.precio_unitario_usd = self.producto.precio_usd
         super().save(*args, **kwargs)

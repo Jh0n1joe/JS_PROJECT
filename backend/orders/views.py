@@ -2,7 +2,8 @@ from django.db import transaction
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Producto, TasaCambio
+# 1. Asegúrate de importar Pedido
+from .models import Pedido, Producto, TasaCambio
 from .serializers import PedidoCreateSerializer, PedidoSerializer, ProductoSerializer
 from .services import enviar_notificacion_telegram, obtener_tasa_bcv
 
@@ -12,15 +13,11 @@ class TasaCambioView(APIView):
         tasa = TasaCambio.obtener_tasa_activa()
         
         if tasa is None:
-            # En lugar de fallar con 503, se retorna una respuesta válida
-            # o una tasa de respaldo para no bloquear la interfaz del cliente.
             return Response({
                 'tasa': 36.50,
                 'fecha_actualizacion': None
             }, status=200)
 
-        # Devolvemos explícitamente la clave 'tasa' con un tipo float/decimal
-        # para asegurar compatibilidad exacta con la interfaz Frontend (TasaCambio)
         return Response({
             'tasa': float(tasa.valor_bs),
             'fecha_actualizacion': getattr(tasa, 'fecha_creacion', None)
@@ -36,12 +33,13 @@ class TasaCambioView(APIView):
         return Response({
             'tasa': float(tasa.valor_bs),
             'fecha_actualizacion': getattr(tasa, 'fecha_creacion', None)
-        }, status=201)
+        }, status=200)
 
 
 class ProductoListView(APIView):
     def get(self, request):
-        productos = Producto.objects.filter(activo=True).select_related('categoria')
+        # Se agrega prefetch_related('maridajes') para cargar de forma eficiente todos los maridajes
+        productos = Producto.objects.filter(activo=True).select_related('categoria').prefetch_related('maridajes')
         
         tasa = TasaCambio.obtener_tasa_activa()
         if tasa is None:
@@ -54,6 +52,16 @@ class ProductoListView(APIView):
 
 
 class CrearPedidoView(APIView):
+    """
+    Soporta GET (listar pedidos ordenados por fecha) 
+    y POST (crear nuevo pedido).
+    """
+    def get(self, request):
+        # Retorna la lista de pedidos de más reciente a más antiguo
+        pedidos = Pedido.objects.all().order_by('-id')
+        serializer = PedidoSerializer(pedidos, many=True)
+        return Response(serializer.data, status=200)
+
     def post(self, request):
         serializer = PedidoCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
