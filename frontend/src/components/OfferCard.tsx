@@ -1,18 +1,29 @@
 import React from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, CheckCircle2, XCircle } from 'lucide-react';
 import type { Producto } from '../types';
 import { useCartStore } from '../store/useCartStore';
 
 interface Props {
   producto: Producto;
+  selectedSede?: string | null;
   onSelect: (producto: Producto) => void;
 }
 
-export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
+export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect }) => {
   const addToCart = useCartStore((state) => state.addToCart);
 
+  // Verificación de disponibilidad según la sede seleccionada
+  const estaDisponible = !selectedSede || 
+    (producto.sedes_disponibles ? producto.sedes_disponibles.includes(selectedSede) : true);
+
   return (
-    <div className="bg-[#181612] border border-[#2c261b] rounded-2xl p-4 flex flex-col justify-between hover:border-amber-500/50 transition-all group shadow-xl">
+    <div 
+      className={`bg-[#181612] border rounded-2xl p-4 flex flex-col justify-between transition-all group shadow-xl relative ${
+        estaDisponible 
+          ? 'border-[#2c261b] hover:border-amber-500/50' 
+          : 'border-red-950/40 opacity-60'
+      }`}
+    >
       <div className="relative">
         {/* Badge de Descuento */}
         {producto.descuento_porcentaje && (
@@ -21,15 +32,36 @@ export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
           </span>
         )}
 
-        {/* Imagen centrada y clickable (ACTUALIZADO) */}
+        {/* Badge de Disponibilidad por Sede */}
+        {selectedSede && (
+          <div className="absolute top-2 right-2 z-10">
+            {estaDisponible ? (
+              <span className="bg-emerald-950/90 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                <CheckCircle2 size={11} />
+                Disponible aquí
+              </span>
+            ) : (
+              <span className="bg-red-950/90 border border-red-500/40 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                <XCircle size={11} />
+                Agotado en sede
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Imagen centrada y clickable */}
         <div 
-          onClick={() => onSelect(producto)}
-          className="h-44 flex items-center justify-center p-2 cursor-pointer bg-[#0e0d0a] rounded-xl overflow-hidden mb-4"
+          onClick={() => estaDisponible && onSelect(producto)}
+          className={`h-44 flex items-center justify-center p-2 bg-[#0e0d0a] rounded-xl overflow-hidden mb-4 ${
+            estaDisponible ? 'cursor-pointer' : 'cursor-not-allowed'
+          }`}
         >
           <img
             src={producto.imagen || producto.imagen_url || "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500"}
             alt={producto.nombre}
-            className="max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
+            className={`max-h-full object-contain transition-transform duration-300 ${
+              estaDisponible ? 'group-hover:scale-105' : 'grayscale'
+            }`}
             onError={(e) => {
               (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500";
             }}
@@ -37,8 +69,13 @@ export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
         </div>
 
         {/* Info del producto */}
-        <div onClick={() => onSelect(producto)} className="cursor-pointer">
-          <h3 className="text-white font-bold text-base line-clamp-1 group-hover:text-amber-400 transition-colors">
+        <div 
+          onClick={() => estaDisponible && onSelect(producto)} 
+          className={estaDisponible ? 'cursor-pointer' : 'cursor-not-allowed'}
+        >
+          <h3 className={`font-bold text-base line-clamp-1 transition-colors ${
+            estaDisponible ? 'text-white group-hover:text-amber-400' : 'text-neutral-400'
+          }`}>
             {producto.nombre}
           </h3>
           <p className="text-neutral-500 text-xs mt-0.5 font-medium line-clamp-1">
@@ -61,11 +98,16 @@ export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
         </div>
 
         <button
+          disabled={!estaDisponible}
           onClick={(e) => {
             e.stopPropagation();
-            addToCart(producto);
+            if (estaDisponible) addToCart(producto);
           }}
-          className="bg-amber-400 hover:bg-amber-500 text-neutral-950 p-2.5 rounded-full transition-colors shadow-lg shadow-amber-500/10"
+          className={`p-2.5 rounded-full transition-colors shadow-lg ${
+            estaDisponible
+              ? 'bg-amber-400 hover:bg-amber-500 text-neutral-950 shadow-amber-500/10 cursor-pointer active:scale-95'
+              : 'bg-neutral-800 text-neutral-600 cursor-not-allowed'
+          }`}
         >
           <ShoppingCart size={16} />
         </button>

@@ -8,6 +8,7 @@ import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
+import { useLocationStore } from './store/useLocationStore';
 
 export function App() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -26,20 +27,23 @@ export function App() {
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
 
+  // Leer la sede activa global para evaluar la disponibilidad de productos
+  const currentSedeId = useLocationStore((state) => state.currentSedeId);
+
   // Cargar productos y categorías dinámicas desde la API de Django
   useEffect(() => {
     const fetchCatalogo = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
         
-        // 1. Petición a la API de productos
+        // Petición a la API de productos
         const response = await fetch(`${apiUrl}/api/productos/`);
         if (!response.ok) {
           throw new Error('Error al obtener la lista de productos');
         }
         const data = await response.json();
         
-        // Formatear precios a número para el cálculo
+        // Formatear precios a número para los cálculos
         const productosFormateados = data.map((prod: any) => ({
           ...prod,
           precio_usd: parseFloat(prod.precio_usd) || 0,
@@ -48,7 +52,7 @@ export function App() {
 
         setProductos(productosFormateados);
 
-        // 2. Extraer categorías únicas reales asociadas a los productos en Django Admin
+        // Extraer categorías únicas reales asociadas a los productos en Django Admin
         const nombresCategorias = Array.from(
           new Set(
             data
@@ -66,12 +70,12 @@ export function App() {
         ];
 
         setCategoriasDB(listaCats);
-      } catch (err: any) {
-        console.error(err);
-        setError('No se pudieron cargar los datos del servidor.');
-      } finally {
-        setLoading(false);
-      }
+     } catch (err: any) {
+       console.error(err);
+       setError('No se pudieron cargar los datos del servidor.');
+     } finally {
+       setLoading(false);
+     }
     };
 
     fetchCatalogo();
@@ -122,7 +126,6 @@ export function App() {
         <Checkout
           onBack={() => setView('home')}
           onConfirmOrder={() => {
-            // Regresa al catálogo y abre el modal de rastreo inmediatamente
             setView('home');
             setShowTracking(true);
           }}
@@ -191,7 +194,7 @@ export function App() {
             </div>
           </div>
 
-          {/* Grid de Productos Filtrados Dinámicamente */}
+          {/* Grid de Productos Filtrados con Estado de Sede Activa */}
           {loading ? (
             <div className="text-center py-12 text-amber-400 font-bold">
               Cargando catálogo desde el servidor...
@@ -210,6 +213,7 @@ export function App() {
                 <OfferCard
                   key={prod.id}
                   producto={prod}
+                  selectedSede={currentSedeId}
                   onSelect={(p) => setSelectedProduct(p)}
                 />
               ))}
@@ -218,7 +222,7 @@ export function App() {
         </main>
       </div>
 
-      {/* Botón Flotante para Rastrear Delivery (Inferior Izquierda) */}
+      {/* Botón Flotante para Rastrear Delivery */}
       <div className="fixed bottom-6 left-6 z-40">
         <button
           onClick={() => setShowTracking(true)}
@@ -234,7 +238,7 @@ export function App() {
         </button>
       </div>
 
-      {/* Widget Flotante del Carrito (Inferior Derecha) */}
+      {/* Widget Flotante del Carrito */}
       {totalItems > 0 && (
         <div className="fixed bottom-6 right-6 z-40">
           <button

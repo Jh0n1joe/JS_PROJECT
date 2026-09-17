@@ -3,6 +3,15 @@ export interface Maridaje {
   tipo: 'chocolate' | 'habano' | 'carne' | 'queso' | 'hielo';
 }
 
+export interface Sede {
+  id: string;
+  nombre: string;
+  direccion: string;
+  tiempo_estimado: string;
+  distancia: string;
+  abierto: boolean;
+}
+
 export interface Producto {
   id: number;
   nombre: string;
@@ -14,10 +23,11 @@ export interface Producto {
   precio_anterior_usd?: number;
   descuento_porcentaje?: number;
   stock: number;
-  imagen?: string; // 👈 Campo corregido coincidente con el JSON de Django
-  imagen_url?: string; // 👈 Mantener opcional por compatibilidad
+  imagen?: string; // 👈 Coincidente con Django
+  imagen_url?: string; // 👈 Mantener por compatibilidad
   disponible_247?: boolean;
   maridajes?: Maridaje[];
+  sedes_disponibles?: string[]; // 👈 Ej: ['barcelona-centro', 'lecheria-plaza']
 }
 
 export interface ItemCarrito {
