@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, TasaCambio
+# Se importa Repartidor
+from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, Repartidor, TasaCambio
 
 
 class TasaCambioSerializer(serializers.ModelSerializer):
@@ -27,20 +28,20 @@ class MaridajeSerializer(serializers.ModelSerializer):
 class ProductoSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source='categoria.nombre', read_only=True)
     precio_bs = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    maridajes = MaridajeSerializer(many=True, read_only=True)  # Anida los maridajes del producto
+    maridajes = MaridajeSerializer(many=True, read_only=True)
 
     class Meta:
         model = Producto
         fields = (
             'id',
             'nombre',
-            'descripcion',  # <-- Agregado
+            'descripcion',
             'categoria',
             'stock',
             'precio_usd',
             'precio_bs',
             'imagen',
-            'maridajes',    # <-- Agregado
+            'maridajes',
         )
 
 
@@ -65,16 +66,45 @@ class ComprobantePagoSerializer(serializers.ModelSerializer):
         fields = ('numero_referencia', 'banco_origen', 'monto_pagado_bs', 'captura_url')
 
 
+# Serializer para devolver los datos del Repartidor asignado
+class RepartidorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Repartidor
+        fields = (
+            'id',
+            'nombre',
+            'telefono',
+            'vehiculo',
+            'calificacion',
+            'foto_url',
+            'latitud_actual',
+            'longitud_actual',
+        )
+
+
 class PedidoSerializer(serializers.ModelSerializer):
     detalles = DetallePedidoSerializer(many=True, read_only=True)
     comprobante = ComprobantePagoSerializer(read_only=True)
+    repartidor = RepartidorSerializer(read_only=True)  # <-- Se añade la relación serializada
 
     class Meta:
         model = Pedido
         fields = (
-            'id', 'nombre_cliente', 'telefono', 'direccion_entrega', 'referencia_ubicacion',
-            'monto_total_usd', 'tasa_cambio_usada', 'monto_total_bs', 'metodo_pago',
-            'estado', 'fecha_creacion', 'detalles', 'comprobante',
+            'id',
+            'nombre_cliente',
+            'telefono',
+            'direccion_entrega',
+            'referencia_ubicacion',
+            'monto_total_usd',
+            'tasa_cambio_usada',
+            'monto_total_bs',
+            'metodo_pago',
+            'estado',
+            'tiempo_estimado',  # <-- Se añade tiempo estimado si tu modelo lo contempla
+            'repartidor',       # <-- Se añade repartidor a la respuesta
+            'fecha_creacion',
+            'detalles',
+            'comprobante',
         )
 
 

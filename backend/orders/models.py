@@ -4,6 +4,24 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
 
+class Repartidor(models.Model):
+    nombre = models.CharField(max_length=100)
+    telefono = models.CharField(max_length=30)
+    vehiculo = models.CharField(max_length=100, default='Moto Bera - Placa AB123C')
+    calificacion = models.DecimalField(max_digits=2, decimal_places=1, default=5.0)
+    foto_url = models.URLField(max_length=500, blank=True, null=True)
+    latitud_actual = models.FloatField(default=10.1333)
+    longitud_actual = models.FloatField(default=-64.7000)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'repartidor'
+        verbose_name_plural = 'repartidores'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.vehiculo})'
+
+
 class TasaCambio(models.Model):
     valor_bs = models.DecimalField(max_digits=14, decimal_places=6)
     es_activa = models.BooleanField(default=False)
@@ -98,8 +116,8 @@ class Pedido(models.Model):
         EFECTIVO = 'EFECTIVO', 'Efectivo USD'
 
     class Estado(models.TextChoices):
-        PENDIENTE = 'PENDIENTE', 'Pendiente'
-        CONFIRMADO = 'CONFIRMADO', 'Confirmado'
+        RECIBIDO = 'RECIBIDO', 'Recibido'
+        PREPARANDO = 'PREPARANDO', 'Preparando'
         EN_CAMINO = 'EN_CAMINO', 'En camino'
         ENTREGADO = 'ENTREGADO', 'Entregado'
         CANCELADO = 'CANCELADO', 'Cancelado'
@@ -112,7 +130,14 @@ class Pedido(models.Model):
     tasa_cambio_usada = models.DecimalField(max_digits=14, decimal_places=6)
     monto_total_bs = models.DecimalField(max_digits=16, decimal_places=2)
     metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices)
-    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.PENDIENTE)
+    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.RECIBIDO)
+    tiempo_estimado = models.CharField(max_length=30, default='15-25 MIN')
+    
+    # Datos de delivery para el mapa y asignación
+    repartidor = models.ForeignKey(Repartidor, on_delete=models.SET_NULL, null=True, blank=True, related_name='pedidos')
+    latitud_destino = models.FloatField(null=True, blank=True)
+    longitud_destino = models.FloatField(null=True, blank=True)
+
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
