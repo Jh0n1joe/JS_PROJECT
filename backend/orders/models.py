@@ -4,6 +4,22 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
 
+class Sede(models.Model):
+    id_slug = models.SlugField(max_length=50, unique=True, help_text="Ej: barcelona-centro, lecheria-plaza")
+    nombre = models.CharField(max_length=150)
+    direccion = models.TextField()
+    tiempo_estimado = models.CharField(max_length=30, default='10-15 MIN')
+    distancia = models.CharField(max_length=30, default='1.2 km')
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'sede'
+        verbose_name_plural = 'sedes'
+
+    def __str__(self):
+        return self.nombre
+
+
 class Repartidor(models.Model):
     nombre = models.CharField(max_length=100)
     telefono = models.CharField(max_length=30)
@@ -71,8 +87,13 @@ class Producto(models.Model):
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='productos')
     stock = models.PositiveIntegerField(default=0)
     precio_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    precio_anterior_usd = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    descuento_porcentaje = models.IntegerField(blank=True, null=True)
     activo = models.BooleanField(default=True)
     imagen = models.URLField(max_length=500, blank=True, null=True)
+    
+    # Sedes donde el producto tiene stock / disponibilidad
+    sedes = models.ManyToManyField(Sede, related_name='productos', blank=True)
 
     class Meta:
         ordering = ('nombre',)
@@ -122,6 +143,9 @@ class Pedido(models.Model):
         ENTREGADO = 'ENTREGADO', 'Entregado'
         CANCELADO = 'CANCELADO', 'Cancelado'
 
+    # Sede desde la que se despacho el pedido
+    sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name='pedidos', null=True, blank=True)
+    
     nombre_cliente = models.CharField(max_length=150)
     telefono = models.CharField(max_length=30)
     direccion_entrega = models.TextField()
@@ -133,7 +157,6 @@ class Pedido(models.Model):
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.RECIBIDO)
     tiempo_estimado = models.CharField(max_length=30, default='15-25 MIN')
     
-    # Datos de delivery para el mapa y asignación
     repartidor = models.ForeignKey(Repartidor, on_delete=models.SET_NULL, null=True, blank=True, related_name='pedidos')
     latitud_destino = models.FloatField(null=True, blank=True)
     longitud_destino = models.FloatField(null=True, blank=True)

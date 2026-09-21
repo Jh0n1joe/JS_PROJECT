@@ -3,8 +3,23 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-# Se importa Repartidor
-from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, Repartidor, TasaCambio
+from .models import (
+    Categoria,
+    ComprobantePago,
+    DetallePedido,
+    Maridaje,
+    Pedido,
+    Producto,
+    Repartidor,
+    Sede,
+    TasaCambio,
+)
+
+
+class SedeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sede
+        fields = ('id', 'id_slug', 'nombre', 'direccion', 'tiempo_estimado', 'distancia', 'activa')
 
 
 class TasaCambioSerializer(serializers.ModelSerializer):
@@ -29,6 +44,13 @@ class ProductoSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source='categoria.nombre', read_only=True)
     precio_bs = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     maridajes = MaridajeSerializer(many=True, read_only=True)
+    # Devuelve la lista de slugs de las sedes asociadas al producto (ej: ['barcelona-centro', 'lecheria-plaza'])
+    sedes_disponibles = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        source='sedes',
+        slug_field='id_slug',
+    )
 
     class Meta:
         model = Producto
@@ -40,8 +62,11 @@ class ProductoSerializer(serializers.ModelSerializer):
             'stock',
             'precio_usd',
             'precio_bs',
+            'precio_anterior_usd',
+            'descuento_porcentaje',
             'imagen',
             'maridajes',
+            'sedes_disponibles',
         )
 
 
@@ -66,7 +91,6 @@ class ComprobantePagoSerializer(serializers.ModelSerializer):
         fields = ('numero_referencia', 'banco_origen', 'monto_pagado_bs', 'captura_url')
 
 
-# Serializer para devolver los datos del Repartidor asignado
 class RepartidorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Repartidor
@@ -85,12 +109,14 @@ class RepartidorSerializer(serializers.ModelSerializer):
 class PedidoSerializer(serializers.ModelSerializer):
     detalles = DetallePedidoSerializer(many=True, read_only=True)
     comprobante = ComprobantePagoSerializer(read_only=True)
-    repartidor = RepartidorSerializer(read_only=True)  # <-- Se añade la relación serializada
+    repartidor = RepartidorSerializer(read_only=True)
+    sede = SedeSerializer(read_only=True)
 
     class Meta:
         model = Pedido
         fields = (
             'id',
+            'sede',
             'nombre_cliente',
             'telefono',
             'direccion_entrega',
@@ -100,8 +126,8 @@ class PedidoSerializer(serializers.ModelSerializer):
             'monto_total_bs',
             'metodo_pago',
             'estado',
-            'tiempo_estimado',  # <-- Se añade tiempo estimado si tu modelo lo contempla
-            'repartidor',       # <-- Se añade repartidor a la respuesta
+            'tiempo_estimado',
+            'repartidor',
             'fecha_creacion',
             'detalles',
             'comprobante',
@@ -109,6 +135,7 @@ class PedidoSerializer(serializers.ModelSerializer):
 
 
 class PedidoCreateSerializer(serializers.ModelSerializer):
+    sede_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     items = serializers.ListField(child=serializers.DictField(), write_only=True)
     comprobante = serializers.CharField(
         required=False,
@@ -121,8 +148,14 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pedido
         fields = (
-            'nombre_cliente', 'telefono', 'direccion_entrega', 'referencia_ubicacion',
-            'metodo_pago', 'items', 'comprobante',
+            'sede_id',
+            'nombre_cliente',
+            'telefono',
+            'direccion_entrega',
+            'referencia_ubicacion',
+            'metodo_pago',
+            'items',
+            'comprobante',
         )
 
     def validate_items(self, value):
@@ -148,6 +181,7 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         numero_comprobante = validated_data.pop('comprobante', None)
+        sede_id = validated_data.pop('sede_id', None)
 
         with transaction.atomic():
             tasa = TasaCambio.obtener_tasa_activa()
@@ -187,8 +221,15 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
                 items_con_precio.append((producto, cantidad))
 
             total_bs = (total_usd * tasa_valor).quantize(Decimal('0.01'))
+            
+            # Obtener instancia de Sede si se envió sede_id
+            sede_obj = None
+            if sede_id:
+                sede_obj = Sede.objects.filter(pk=sede_id, activa=True).first()
+
             pedido = Pedido.objects.create(
                 **validated_data,
+                sede=sede_obj,
                 monto_total_usd=total_usd,
                 tasa_cambio_usada=tasa_valor,
                 monto_total_bs=total_bs,

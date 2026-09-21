@@ -12,6 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
+import { useLocationStore } from '../store/useLocationStore';
 import { TASA_BCV } from '../data/mockProductos';
 
 interface Props {
@@ -21,6 +22,10 @@ interface Props {
 
 export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
   const { cart, clearCart } = useCartStore();
+  
+  // Obtener la sede seleccionada desde el estado global de Zustand
+  const currentSedeId = useLocationStore((state) => state.currentSedeId);
+
   const [paymentMethod, setPaymentMethod] = useState<'pago_movil' | 'zelle' | 'efectivo'>('pago_movil');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -106,6 +111,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sede_id: currentSedeId, // <-- Pasa la sede desde la que se compra
           nombre_cliente: customerName,
           telefono: phone,
           direccion_entrega: address,
@@ -296,7 +302,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-[#0d0c0a] border border-[#262016] rounded-lg p-1.5 flex items-center justify-center shrink-0">
                           <img
-                            src={item.producto.imagen_url}
+                            src={item.producto.imagen_url || item.producto.imagen}
                             alt={item.producto.nombre}
                             className="max-h-full object-contain"
                           />

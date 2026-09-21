@@ -1,9 +1,18 @@
 from django.contrib import admin, messages
-from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, Repartidor, TasaCambio
+# 1. Agregamos 'Sede' a las importaciones
+from .models import Categoria, ComprobantePago, DetallePedido, Maridaje, Pedido, Producto, Repartidor, Sede, TasaCambio
 
 admin.site.register(TasaCambio)
 admin.site.register(Categoria)
 admin.site.register(ComprobantePago)
+
+
+# --- ADMIN PARA SEDE ---
+@admin.register(Sede)
+class SedeAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'id_slug', 'direccion', 'tiempo_estimado', 'activa')
+    list_filter = ('activa',)
+    search_fields = ('nombre', 'id_slug')
 
 
 # --- ADMIN PARA REPARTIDOR ---
@@ -23,9 +32,11 @@ class MaridajeInline(admin.TabularInline):
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'precio_usd', 'stock', 'activo')
-    list_filter = ('categoria', 'activo')
+    list_filter = ('categoria', 'activo', 'sedes')
     search_fields = ('nombre', 'descripcion')
     inlines = [MaridajeInline]
+    # Activa la interfaz con dos columnas (Disponibles / Elegidas) para las Sedes
+    filter_horizontal = ('sedes',)
 
 
 # --- INLINE Y ADMIN PARA PEDIDO ---

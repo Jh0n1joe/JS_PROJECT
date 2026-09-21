@@ -3,9 +3,24 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Pedido, Producto, TasaCambio
-from .serializers import PedidoCreateSerializer, PedidoSerializer, ProductoSerializer
+from .models import Pedido, Producto, Sede, TasaCambio
+from .serializers import (
+    PedidoCreateSerializer,
+    PedidoSerializer,
+    ProductoSerializer,
+    SedeSerializer,
+)
 from .services import enviar_notificacion_telegram, obtener_tasa_bcv
+
+
+# --- VISTA PARA SEDES ---
+class SedeListView(APIView):
+    """
+    Retorna la lista de sedes activas para consumirlas desde el frontend.
+    """
+    def get(self, request):
+        sedes = Sede.objects.filter(activa=True)
+        return Response(SedeSerializer(sedes, many=True).data, status=status.HTTP_200_OK)
 
 
 class TasaCambioView(APIView):
@@ -38,7 +53,8 @@ class TasaCambioView(APIView):
 
 class ProductoListView(APIView):
     def get(self, request):
-        productos = Producto.objects.filter(activo=True).select_related('categoria').prefetch_related('maridajes')
+        # Se agrega .prefetch_related('sedes') para que el ProductoSerializer arme 'sedes_disponibles' sin hacer N+1 queries
+        productos = Producto.objects.filter(activo=True).select_related('categoria').prefetch_related('maridajes', 'sedes')
         
         tasa = TasaCambio.obtener_tasa_activa()
         if tasa is None:
@@ -56,8 +72,7 @@ class CrearPedidoView(APIView):
     y POST (crear nuevo pedido).
     """
     def get(self, request):
-        # select_related('repartidor') y prefetch_related('detalles__producto') optimizan las consultas
-        pedidos = Pedido.objects.all().select_related('repartidor', 'comprobante').prefetch_related('detalles__producto').order_by('-id')
+        pedidos = Pedido.objects.all().select_related('repartidor', 'comprobante', 'sede').prefetch_related('detalles__producto').order_by('-id')
         serializer = PedidoSerializer(pedidos, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -81,7 +96,7 @@ class PedidoDetalleView(APIView):
     """
     def get(self, request, pk):
         try:
-            pedido = Pedido.objects.select_related('repartidor', 'comprobante').prefetch_related('detalles__producto').get(pk=pk)
+            pedido = Pedido.objects.select_related('repartidor', 'comprobante', 'sede').prefetch_related('detalles__producto').get(pk=pk)
         except Pedido.DoesNotExist:
             return Response({'detail': 'Pedido no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
             
