@@ -9,7 +9,10 @@ import {
   ArrowLeft, 
   Crosshair, 
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Minus,
+  Trash2
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useLocationStore } from '../store/useLocationStore';
@@ -21,7 +24,8 @@ interface Props {
 }
 
 export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
-  const { cart, clearCart } = useCartStore();
+  // Extraemos las acciones del store del carrito
+  const { cart, clearCart, updateQuantity, removeFromCart } = useCartStore();
   
   // Obtener la sede seleccionada desde el estado global de Zustand
   const currentSedeId = useLocationStore((state) => state.currentSedeId);
@@ -315,41 +319,94 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                 </div>
               </div>
 
-              {/* Resumen del Pedido */}
-              <div className="bg-[#14120e] border border-[#2a2419] rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-3 text-amber-400 font-bold text-lg mb-6">
-                  <ShoppingBag size={22} />
-                  <h2>Resumen del Pedido</h2>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {cart.map((item) => (
-                    <div
-                      key={item.producto.id}
-                      className="bg-[#1b1813] border border-[#2c261b] rounded-xl p-3.5 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-[#0d0c0a] border border-[#262016] rounded-lg p-1.5 flex items-center justify-center shrink-0">
-                          <img
-                            src={item.producto.imagen_url || item.producto.imagen}
-                            alt={item.producto.nombre}
-                            className="max-h-full object-contain"
-                          />
-                        </div>
-                        <div>
-                          <h4 className="text-white font-bold text-sm">{item.producto.nombre}</h4>
-                          <p className="text-neutral-500 text-xs mt-0.5">
-                            {item.producto.subcategoria || item.producto.categoria} • Cantidad: {item.cantidad}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-amber-400 font-extrabold text-base whitespace-nowrap">
-                        ${(item.producto.precio_usd * item.cantidad).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                           {/* Resumen del Pedido */}
+             <div className="bg-[#14120e] border border-[#2a2419] rounded-2xl p-6 shadow-xl">
+               <div className="flex items-center gap-3 text-amber-400 font-bold text-lg mb-6">
+                 <ShoppingBag size={22} />
+                 <h2>Resumen del Pedido</h2>
+               </div>
+             
+               <div className="flex flex-col gap-3">
+                 {cart.length === 0 ? (
+                   <div className="text-center py-6 text-neutral-500 text-sm">
+                     Tu carrito está vacío.
+                   </div>
+                 ) : (
+                   cart.map((item) => (
+                     <div
+                       key={item.producto.id}
+                       className="bg-[#1b1813] border border-[#2c261b] rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                     >
+                       {/* Imagen e info del producto */}
+                       <div className="flex items-center gap-4">
+                         <div className="w-14 h-14 bg-[#0d0c0a] border border-[#262016] rounded-lg p-1.5 flex items-center justify-center shrink-0">
+                           <img
+                             src={item.producto.imagen_url || item.producto.imagen}
+                             alt={item.producto.nombre}
+                             className="max-h-full object-contain"
+                           />
+                         </div>
+                         <div>
+                           <h4 className="text-white font-bold text-sm">{item.producto.nombre}</h4>
+                           <p className="text-neutral-500 text-xs mt-0.5">
+                             {item.producto.subcategoria || item.producto.categoria}
+                           </p>
+                         </div>
+                       </div>
+             
+                       {/* Controles de cantidad, eliminar y precio */}
+                       <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-[#262016] pt-2 sm:pt-0">
+                         {/* Control + / - */}
+                         <div className="flex items-center gap-2 bg-[#0d0c0a] border border-[#2e2619] rounded-lg p-1">
+                           <button
+                             type="button"
+                             onClick={() => {
+                               if (item.cantidad > 1) {
+                                 updateQuantity(item.producto.id, item.cantidad - 1);
+                               } else {
+                                 removeFromCart(item.producto.id);
+                               }
+                             }}
+                             className="p-1 hover:bg-[#241e15] text-neutral-400 hover:text-white rounded transition-colors cursor-pointer"
+                             title="Restar cantidad"
+                           >
+                             <Minus size={25} />
+                           </button>
+             
+                           <span className="text-amber-400 font-bold text-base px-5 min-w-[20px] text-center">
+                             {item.cantidad}
+                           </span>
+             
+                           <button
+                             type="button"
+                             onClick={() => updateQuantity(item.producto.id, item.cantidad + 1)}
+                             className="p-1 hover:bg-[#241e15] text-neutral-400 hover:text-white rounded transition-colors cursor-pointer"
+                             title="Sumar cantidad"
+                           >
+                             <Plus size={25} />
+                           </button>
+                         </div>
+             
+                         {/* Precio parcial */}
+                         <span className="text-amber-400 font-extrabold text-base whitespace-nowrap min-w-[70px] text-right">
+                           ${(item.producto.precio_usd * item.cantidad).toFixed(2)}
+                         </span>
+             
+                         {/* Botón eliminar */}
+                         <button
+                           type="button"
+                           onClick={() => removeFromCart(item.producto.id)}
+                           className="text-neutral-500 hover:text-red-400 p-1.5 transition-colors cursor-pointer"
+                           title="Eliminar del pedido"
+                         >
+                           <Trash2 size={25} />
+                         </button>
+                       </div>
+                     </div>
+                   ))
+                 )}
+               </div>
+             </div>
             </div>
 
             {/* Columna Derecha: Métodos de Pago */}
