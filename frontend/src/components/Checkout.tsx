@@ -107,32 +107,61 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-      const response = await fetch(`${apiUrl}/api/pedidos/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sede_id: currentSedeId, // <-- Pasa la sede desde la que se compra
-          nombre_cliente: customerName,
-          telefono: phone,
-          direccion_entrega: address,
-          referencia_ubicacion: [apt, instructions].filter(Boolean).join(' | '),
-          metodo_pago: paymentMethod === 'pago_movil'
+
+      // Parseo seguro de sede a ID entero
+      let sedeValue: number | null = null;
+      if (typeof currentSedeId === 'number') {
+        sedeValue = currentSedeId;
+      } else if (typeof currentSedeId === 'string') {
+        const parsed = parseInt(currentSedeId, 10);
+        sedeValue = isNaN(parsed) ? 1 : parsed;
+      } else {
+        sedeValue = 1;
+      }
+
+      // Estructura del JSON garantizando enteros para los IDs requeridos por DRF
+      const payload = {
+        sede: sedeValue,
+        sede_id: sedeValue,
+        nombre_cliente: customerName,
+        telefono: phone,
+        direccion_entrega: address,
+        referencia_ubicacion: [apt, instructions].filter(Boolean).join(' | '),
+        metodo_pago:
+          paymentMethod === 'pago_movil'
             ? 'PAGO_MOVIL'
             : paymentMethod === 'zelle'
               ? 'ZELLE'
               : 'EFECTIVO',
-          items: cart.map((item) => ({
-            producto_id: item.producto.id,
-            cantidad: item.cantidad,
-          })),
-          comprobante: paymentMethod === 'pago_movil' ? comprobante : null,
-        }),
+        items: cart.map((item) => ({
+          producto: parseInt(String(item.producto.id), 10),
+          producto_id: parseInt(String(item.producto.id), 10),
+          cantidad: parseInt(String(item.cantidad), 10),
+        })),
+        comprobante: paymentMethod === 'pago_movil' ? comprobante : null,
+      };
+
+      const response = await fetch(`${apiUrl}/api/pedidos/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        const detail = errorData?.detail || Object.values(errorData || {}).flat().join(' ');
-        throw new Error(detail || 'No se pudo guardar el pedido.');
+        console.error('Respuesta detallada de error Django:', errorData);
+
+        let detail = 'No se pudo guardar el pedido.';
+        if (errorData) {
+          if (typeof errorData === 'object') {
+            detail = Object.entries(errorData)
+              .map(([campo, errores]) => `${campo}: ${Array.isArray(errores) ? errores.join(', ') : errores}`)
+              .join(' | ');
+          } else if (errorData.detail) {
+            detail = errorData.detail;
+          }
+        }
+        throw new Error(detail);
       }
 
       const orderData = await response.json();
