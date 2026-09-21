@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Minus, Plus, X, Utensils, Flame, Cookie } from 'lucide-react';
+import { ShoppingBag, Minus, Plus, X, Utensils, Flame, Cookie, Nut, Cigarette } from 'lucide-react';
 import type { Producto } from '../types';
 import { TASA_BCV } from '../data/mockProductos';
 import { useCartStore } from '../store/useCartStore';
@@ -13,6 +13,16 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
   const [cantidad, setCantidad] = useState(1);
   const addToCart = useCartStore((state) => state.addToCart);
 
+  // Formatear URL de imagen procedente de Django o fallback
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const rawImage = producto.imagen_url || (producto as any).imagen;
+
+  const imageUrl = rawImage
+    ? rawImage.startsWith('http')
+      ? rawImage
+      : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+    : 'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80';
+
   const precioBs = (producto.precio_usd * TASA_BCV).toLocaleString('es-VE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -21,6 +31,24 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
   const handleAddToCart = () => {
     addToCart(producto, cantidad);
     onClose();
+  };
+
+  // Función helper para resolver el icono dinámicamente
+  const renderMaridajeIcon = (tipo: string) => {
+    switch (tipo?.toLowerCase()) {
+      case 'chocolate':
+        return <Cookie size={18} className="text-amber-400" />;
+      case 'humo':
+        return <Cigarette size={18} className="text-amber-400" />;
+      case 'frituras':
+        return <Utensils size={18} className="text-amber-400" />;
+      case 'frutos_secos':
+        return <Nut size={18} className="text-amber-400" />;
+      case 'carne':
+        return <Flame size={18} className="text-amber-400" />;
+      default:
+        return <Utensils size={18} className="text-amber-400" />;
+    }
   };
 
   return (
@@ -36,16 +64,22 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           <div className="bg-[#0b0a08] border border-[#231e15] rounded-xl p-6 flex items-center justify-center min-h-[320px]">
             <img
-              src={producto.imagen_url}
+              src={imageUrl}
               alt={producto.nombre}
               className="max-h-72 object-contain drop-shadow-[0_20px_20px_rgba(0,0,0,0.8)]"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src =
+                  'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80';
+              }}
             />
           </div>
 
           <div>
             <div className="flex items-center gap-3 text-xs mb-2">
               <span className="bg-[#241f16] text-neutral-300 px-3 py-1 rounded-full border border-[#383020]">
-                {producto.subcategoria || producto.categoria}
+                {typeof producto.categoria === 'object'
+                  ? (producto.categoria as any).nombre
+                  : producto.subcategoria || producto.categoria}
               </span>
               <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -88,7 +122,7 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
 
               <button
                 onClick={handleAddToCart}
-                className="flex-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-bold py-3.5 px-6 rounded-full flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-500/10"
+                className="flex-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-bold py-3.5 px-6 rounded-full flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-500/10 cursor-pointer"
               >
                 <ShoppingBag size={18} />
                 Añadir al Carrito
@@ -100,7 +134,7 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
               <p className="text-xs text-neutral-400 leading-relaxed">{producto.descripcion}</p>
             </div>
 
-            {producto.maridajes && (
+            {producto.maridajes && producto.maridajes.length > 0 && (
               <div className="mt-5">
                 <h4 className="text-sm font-bold text-neutral-200 mb-2">Sugerencias de Maridaje</h4>
                 <div className="grid grid-cols-3 gap-3">
@@ -109,9 +143,7 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
                       key={idx}
                       className="bg-[#1c1913] border border-[#2c2518] rounded-xl p-2.5 flex flex-col items-center justify-center text-center gap-1.5"
                     >
-                      {m.tipo === 'chocolate' && <Cookie size={18} className="text-amber-400" />}
-                      {m.tipo === 'habano' && <Flame size={18} className="text-amber-400" />}
-                      {m.tipo === 'carne' && <Utensils size={18} className="text-amber-400" />}
+                      {renderMaridajeIcon(m.tipo)}
                       <span className="text-[11px] text-neutral-300 font-medium">{m.nombre}</span>
                     </div>
                   ))}

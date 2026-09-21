@@ -12,6 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
+import { useLocationStore } from '../store/useLocationStore';
 import { TASA_BCV } from '../data/mockProductos';
 
 interface Props {
@@ -21,6 +22,10 @@ interface Props {
 
 export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
   const { cart, clearCart } = useCartStore();
+  
+  // Obtener la sede seleccionada desde el estado global de Zustand
+  const currentSedeId = useLocationStore((state) => state.currentSedeId);
+
   const [paymentMethod, setPaymentMethod] = useState<'pago_movil' | 'zelle' | 'efectivo'>('pago_movil');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -106,6 +111,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sede_id: currentSedeId, // <-- Pasa la sede desde la que se compra
           nombre_cliente: customerName,
           telefono: phone,
           direccion_entrega: address,
@@ -131,7 +137,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
 
       const orderData = await response.json();
 
-      // Guardar ID del pedido en localStorage para "Mis Pedidos"
+      // Guardar ID del pedido en localStorage para el modal de tracking
       if (orderData && orderData.id) {
         const existingOrders = JSON.parse(localStorage.getItem('my_orders') || '[]');
         if (!existingOrders.includes(orderData.id)) {
@@ -162,7 +168,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
             <button
               onClick={onBack}
               type="button"
-              className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors text-sm font-semibold"
+              className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors text-sm font-semibold cursor-pointer"
             >
               <ArrowLeft size={18} />
               Volver al catálogo
@@ -184,7 +190,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
           )}
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Columna Izquierda: Formulario + Resumen de Ítems */}
+            {/* Columna Izquierda: Formulario + Resumen */}
             <div className="lg:col-span-7 flex flex-col gap-8">
               {/* Detalles de Envío */}
               <div className="bg-[#14120e] border border-[#2a2419] rounded-2xl p-6 shadow-xl">
@@ -226,7 +232,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         onClick={handleGetExactLocation}
                         disabled={loadingGps}
                         title="Obtener ubicación exacta por GPS"
-                        className="bg-[#1e1b15] hover:bg-[#2c261b] border border-[#332b1c] hover:border-amber-400 text-amber-400 p-3 rounded-xl transition-all flex items-center justify-center shrink-0 disabled:opacity-50 active:scale-95"
+                        className="bg-[#1e1b15] hover:bg-[#2c261b] border border-[#332b1c] hover:border-amber-400 text-amber-400 p-3 rounded-xl transition-all flex items-center justify-center shrink-0 disabled:opacity-50 active:scale-95 cursor-pointer"
                       >
                         {loadingGps ? (
                           <Loader2 size={18} className="animate-spin text-amber-400" />
@@ -296,7 +302,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-[#0d0c0a] border border-[#262016] rounded-lg p-1.5 flex items-center justify-center shrink-0">
                           <img
-                            src={item.producto.imagen_url}
+                            src={item.producto.imagen_url || item.producto.imagen}
                             alt={item.producto.nombre}
                             className="max-h-full object-contain"
                           />
@@ -317,7 +323,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
               </div>
             </div>
 
-            {/* Columna Derecha: Métodos de Pago y Checkout */}
+            {/* Columna Derecha: Métodos de Pago */}
             <div className="lg:col-span-5 flex flex-col gap-6">
               <div className="bg-[#14120e] border border-[#2a2419] rounded-2xl p-6 shadow-xl sticky top-24">
                 <div className="flex items-center gap-3 text-amber-400 font-bold text-lg mb-6">
@@ -325,7 +331,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                   <h2>Método de Pago</h2>
                 </div>
 
-                {/* Seleccionador de Método de Pago */}
+                {/* Seleccionador */}
                 <div className="flex flex-col gap-3 mb-6">
                   <div
                     onClick={() => setPaymentMethod('pago_movil')}
@@ -385,7 +391,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                   </div>
                 </div>
 
-                {/* Detalles de Pago */}
+                {/* Datos de Transferencia */}
                 {paymentMethod === 'pago_movil' && (
                   <div className="bg-[#181510] border border-[#2b2418] rounded-xl p-4 mb-6">
                     <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">
@@ -400,7 +406,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         <button
                           type="button"
                           onClick={() => handleCopy('0102', 'bank')}
-                          className="text-neutral-400 hover:text-amber-400 transition-colors"
+                          className="text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer"
                         >
                           {copiedField === 'bank' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                         </button>
@@ -414,7 +420,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         <button
                           type="button"
                           onClick={() => handleCopy('04123333510', 'phone')}
-                          className="text-neutral-400 hover:text-amber-400 transition-colors"
+                          className="text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer"
                         >
                           {copiedField === 'phone' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                         </button>
@@ -428,7 +434,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                         <button
                           type="button"
                           onClick={() => handleCopy('J32765839', 'rif')}
-                          className="text-neutral-400 hover:text-amber-400 transition-colors"
+                          className="text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer"
                         >
                           {copiedField === 'rif' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                         </button>
@@ -450,12 +456,8 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                           value={comprobante}
                           onChange={(event) => setComprobante(event.target.value.replace(/\D/g, '').slice(0, 4))}
                           placeholder="Ej. 4821"
-                          aria-describedby="comprobante-help"
                           className="w-full bg-[#0e0d0a] border border-[#332b1c] rounded-lg px-3 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-amber-400"
                         />
-                        <span id="comprobante-help" className="text-neutral-500 block mt-1 text-[11px]">
-                          Debe contener exactamente 4 dígitos.
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -474,7 +476,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                       <button
                         type="button"
                         onClick={() => handleCopy('pagos@panadrink247.com', 'zelle')}
-                        className="text-neutral-400 hover:text-amber-400 transition-colors"
+                        className="text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer"
                       >
                         {copiedField === 'zelle' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                       </button>
@@ -482,7 +484,7 @@ export const Checkout: React.FC<Props> = ({ onBack, onConfirmOrder }) => {
                   </div>
                 )}
 
-                {/* Desglose de Totales */}
+                {/* Totales */}
                 <div className="border-t border-[#262016] pt-4 flex flex-col gap-2 text-sm">
                   <div className="flex justify-between text-neutral-400">
                     <span>Subtotal</span>

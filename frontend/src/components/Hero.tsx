@@ -1,67 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Sparkles, Clock, CheckCircle, Store, ChevronRight } from 'lucide-react';
 
-interface Sede {
-  id: string;
+// 1. Interface alineada con la respuesta de SedeSerializer en Django
+export interface Sede {
+  id: number;
+  id_slug: string;
   nombre: string;
-  zona: string;
-  tiempoEstimado: string;
-  distancia: string;
-  imagen: string;
-  disponible: boolean;
+  direccion: string;
+  tiempo_estimado: string;
+  distancia?: string;
+  activa: boolean;
+  imagen?: string;
 }
-
-// Sedes de despacho activas en la zona
-const SEDES_DISPONIBLES: Sede[] = [
-  {
-    id: '1',
-    nombre: 'PanaDrink Express - Barcelona Centro',
-    zona: 'barcelona',
-    tiempoEstimado: '10 - 15 MIN',
-    distancia: '1.2 km',
-    imagen: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=600&q=80',
-    disponible: true,
-  },
-  {
-    id: '2',
-    nombre: 'PanaDrink Hub - Lechería Plaza',
-    zona: 'lecheria',
-    tiempoEstimado: '15 - 20 MIN',
-    distancia: '3.8 km',
-    imagen: 'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?auto=format&fit=crop&w=600&q=80',
-    disponible: true,
-  },
-  {
-    id: '3',
-    nombre: 'PanaDrink Point - Puerto La Cruz',
-    zona: 'puerto la cruz',
-    tiempoEstimado: '20 - 30 MIN',
-    distancia: '6.5 km',
-    imagen: 'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80',
-    disponible: true,
-  },
-];
 
 interface HeroProps {
   onSelectSede?: (sede: Sede) => void;
+  sedeSeleccionadaSlug?: string;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onSelectSede }) => {
+const IMAGEN_POR_DEFECTO = 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=600&q=80';
+
+export const Hero: React.FC<HeroProps> = ({ onSelectSede, sedeSeleccionadaSlug }) => {
   const [address, setAddress] = useState('');
-  const [showResults, setShowResults] = useState(false);
+  const [showResults, setShowResults] = useState(true); // Mostrar por defecto
+  const [sedesDB, setSedesDB] = useState<Sede[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  // 2. Consumir la API de Django (/api/sedes/)
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/sedes/')
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al consultar sedes');
+        return res.json();
+      })
+      .then((data: Sede[]) => {
+        setSedesDB(data);
+        setCargando(false);
+      })
+      .catch((err) => {
+        console.error('Error cargando sedes desde Django:', err);
+        setCargando(false);
+      });
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setShowResults(true);
   };
 
-  // Filtrar sedes según lo ingresado por el usuario (o mostrar todas si se presiona buscar en blanco)
-  const sedesFiltradas = SEDES_DISPONIBLES.filter((s) =>
-    s.nombre.toLowerCase().includes(address.toLowerCase()) ||
-    s.zona.toLowerCase().includes(address.toLowerCase())
+  // 3. Filtrar sedes activas según la búsqueda
+  const sedesFiltradas = sedesDB.filter(
+    (s) =>
+      s.nombre.toLowerCase().includes(address.toLowerCase()) ||
+      s.direccion.toLowerCase().includes(address.toLowerCase()) ||
+      s.id_slug.toLowerCase().includes(address.toLowerCase())
   );
 
-  const sedesAMostrar = sedesFiltradas.length > 0 ? sedesFiltradas : SEDES_DISPONIBLES;
+  const sedesAMostrar = sedesFiltradas.length > 0 ? sedesFiltradas : sedesDB;
 
   const scrollToCatalogo = () => {
     const catalogSection = document.getElementById('catalogo');
@@ -101,7 +96,7 @@ export const Hero: React.FC<HeroProps> = ({ onSelectSede }) => {
                 setAddress(e.target.value);
                 if (e.target.value.trim() !== '') setShowResults(true);
               }}
-              placeholder="Ej: Barcelona, Lechería, Nueva Barcelona..."
+              placeholder="Ej: Barcelona, Lechería, Puerto La Cruz..."
               className="bg-transparent text-sm text-white placeholder-neutral-500 w-full focus:outline-none"
             />
             <button
@@ -127,52 +122,65 @@ export const Hero: React.FC<HeroProps> = ({ onSelectSede }) => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-              {sedesAMostrar.map((sede) => (
-                <div
-                  key={sede.id}
-                  onClick={() => {
-                    localStorage.setItem('user_delivery_address', sede.nombre);
-                    if (onSelectSede) onSelectSede(sede);
-                    scrollToCatalogo();
-                  }}
-                  className="group relative bg-[#13110d] border border-[#2b2418] hover:border-amber-400/80 rounded-2xl overflow-hidden p-3 transition-all cursor-pointer text-left hover:shadow-xl hover:shadow-amber-500/5 hover:-translate-y-0.5 flex flex-col justify-between"
-                >
-                  <div>
-                    {/* Imagen de la Sede con Badge de Tiempo */}
-                    <div className="relative h-28 w-full rounded-xl overflow-hidden mb-3 bg-neutral-900">
-                      <img
-                        src={sede.imagen}
-                        alt={sede.nombre}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute top-2 right-2 bg-neutral-950/80 backdrop-blur-md border border-amber-400/40 text-amber-400 font-black text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
-                        <Clock size={11} className="animate-pulse" />
-                        {sede.tiempoEstimado}
+            {cargando ? (
+              <p className="text-neutral-500 text-xs py-6">Cargando sedes disponibles desde la base de datos...</p>
+            ) : sedesAMostrar.length === 0 ? (
+              <p className="text-neutral-400 text-xs py-6">No se encontraron sedes activas para la zona ingresada.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                {sedesAMostrar.map((sede) => {
+                  const isSelected = sedeSeleccionadaSlug === sede.id_slug;
+
+                  return (
+                    <div
+                      key={sede.id}
+                      onClick={() => {
+                        localStorage.setItem('user_selected_sede_slug', sede.id_slug);
+                        localStorage.setItem('user_delivery_address', sede.nombre);
+                        if (onSelectSede) onSelectSede(sede);
+                        scrollToCatalogo();
+                      }}
+                      className={`group relative bg-[#13110d] border ${
+                        isSelected ? 'border-amber-400 ring-1 ring-amber-400' : 'border-[#2b2418] hover:border-amber-400/80'
+                      } rounded-2xl overflow-hidden p-3 transition-all cursor-pointer text-left hover:shadow-xl hover:shadow-amber-500/5 hover:-translate-y-0.5 flex flex-col justify-between`}
+                    >
+                      <div>
+                        {/* Imagen de la Sede con Badge de Tiempo */}
+                        <div className="relative h-28 w-full rounded-xl overflow-hidden mb-3 bg-neutral-900">
+                          <img
+                            src={sede.imagen || IMAGEN_POR_DEFECTO}
+                            alt={sede.nombre}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute top-2 right-2 bg-neutral-950/80 backdrop-blur-md border border-amber-400/40 text-amber-400 font-black text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
+                            <Clock size={11} className="animate-pulse" />
+                            {sede.tiempo_estimado}
+                          </div>
+                          <div className="absolute bottom-2 left-2 bg-emerald-500/90 text-neutral-950 font-bold text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
+                            <CheckCircle size={10} />
+                            Abierto
+                          </div>
+                        </div>
+
+                        {/* Nombre y Dirección */}
+                        <h4 className="text-white font-bold text-xs leading-snug group-hover:text-amber-400 transition-colors line-clamp-1">
+                          {sede.nombre}
+                        </h4>
+                        <p className="text-neutral-500 text-[11px] mt-1 line-clamp-2">
+                          {sede.direccion}
+                        </p>
                       </div>
-                      <div className="absolute bottom-2 left-2 bg-emerald-500/90 text-neutral-950 font-bold text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
-                        <CheckCircle size={10} />
-                        Abierto
+
+                      {/* Botón Acción */}
+                      <div className="mt-3 pt-2 border-t border-[#221c13] flex items-center justify-between text-amber-400 text-[11px] font-bold">
+                        <span>{isSelected ? 'Sede Seleccionada ✓' : 'Pedir desde aquí'}</span>
+                        <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
-
-                    {/* Nombre y Distancia */}
-                    <h4 className="text-white font-bold text-xs leading-snug group-hover:text-amber-400 transition-colors">
-                      {sede.nombre}
-                    </h4>
-                    <p className="text-neutral-500 text-[11px] mt-1 flex items-center justify-between">
-                      <span>Distancia: <strong className="text-neutral-300">{sede.distancia}</strong></span>
-                    </p>
-                  </div>
-
-                  {/* Botón Acción */}
-                  <div className="mt-3 pt-2 border-t border-[#221c13] flex items-center justify-between text-amber-400 text-[11px] font-bold">
-                    <span>Pedir desde aquí</span>
-                    <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

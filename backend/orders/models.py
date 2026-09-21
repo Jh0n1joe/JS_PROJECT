@@ -4,6 +4,40 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
 
+class Sede(models.Model):
+    id_slug = models.SlugField(max_length=50, unique=True, help_text="Ej: barcelona-centro, lecheria-plaza")
+    nombre = models.CharField(max_length=150)
+    direccion = models.TextField()
+    tiempo_estimado = models.CharField(max_length=30, default='10-15 MIN')
+    distancia = models.CharField(max_length=30, default='1.2 km')
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'sede'
+        verbose_name_plural = 'sedes'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Repartidor(models.Model):
+    nombre = models.CharField(max_length=100)
+    telefono = models.CharField(max_length=30)
+    vehiculo = models.CharField(max_length=100, default='Moto Bera - Placa AB123C')
+    calificacion = models.DecimalField(max_digits=2, decimal_places=1, default=5.0)
+    foto_url = models.URLField(max_length=500, blank=True, null=True)
+    latitud_actual = models.FloatField(default=10.1333)
+    longitud_actual = models.FloatField(default=-64.7000)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'repartidor'
+        verbose_name_plural = 'repartidores'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.vehiculo})'
+
+
 class TasaCambio(models.Model):
     valor_bs = models.DecimalField(max_digits=14, decimal_places=6)
     es_activa = models.BooleanField(default=False)
@@ -49,11 +83,17 @@ class Categoria(models.Model):
 
 class Producto(models.Model):
     nombre = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True, null=True, verbose_name="Descripción")
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='productos')
     stock = models.PositiveIntegerField(default=0)
     precio_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    precio_anterior_usd = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    descuento_porcentaje = models.IntegerField(blank=True, null=True)
     activo = models.BooleanField(default=True)
-    imagen = models.URLField(max_length=500, blank=True, null=True)  # Optional image field
+    imagen = models.URLField(max_length=500, blank=True, null=True)
+    
+    # Sedes donde el producto tiene stock / disponibilidad
+    sedes = models.ManyToManyField(Sede, related_name='productos', blank=True)
 
     class Meta:
         ordering = ('nombre',)
@@ -71,6 +111,25 @@ class Producto(models.Model):
         return (self.precio_usd * tasa.valor_bs).quantize(Decimal('0.01'))
 
 
+class Maridaje(models.Model):
+    class TipoMaridaje(models.TextChoices):
+        CHOCOLATE = 'chocolate', 'Chocolate / Dulces'
+        HUMO = 'humo', 'Humo'
+        FRITURAS = 'frituras', 'Frituras / Pasapalos'
+        FRUTOS_SECOS = 'frutos_secos', 'Frutos Secos'
+
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='maridajes')
+    tipo = models.CharField(max_length=30, choices=TipoMaridaje.choices)
+    nombre = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = 'maridaje'
+        verbose_name_plural = 'maridajes'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.tipo}) - {self.producto.nombre}'
+
+
 class Pedido(models.Model):
     class MetodoPago(models.TextChoices):
         PAGO_MOVIL = 'PAGO_MOVIL', 'Pago móvil'
@@ -78,12 +137,15 @@ class Pedido(models.Model):
         EFECTIVO = 'EFECTIVO', 'Efectivo USD'
 
     class Estado(models.TextChoices):
-        PENDIENTE = 'PENDIENTE', 'Pendiente'
-        CONFIRMADO = 'CONFIRMADO', 'Confirmado'
+        RECIBIDO = 'RECIBIDO', 'Recibido'
+        PREPARANDO = 'PREPARANDO', 'Preparando'
         EN_CAMINO = 'EN_CAMINO', 'En camino'
         ENTREGADO = 'ENTREGADO', 'Entregado'
         CANCELADO = 'CANCELADO', 'Cancelado'
 
+    # Sede desde la que se despacho el pedido
+    sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name='pedidos', null=True, blank=True)
+    
     nombre_cliente = models.CharField(max_length=150)
     telefono = models.CharField(max_length=30)
     direccion_entrega = models.TextField()
@@ -92,7 +154,13 @@ class Pedido(models.Model):
     tasa_cambio_usada = models.DecimalField(max_digits=14, decimal_places=6)
     monto_total_bs = models.DecimalField(max_digits=16, decimal_places=2)
     metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices)
-    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.PENDIENTE)
+    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.RECIBIDO)
+    tiempo_estimado = models.CharField(max_length=30, default='15-25 MIN')
+    
+    repartidor = models.ForeignKey(Repartidor, on_delete=models.SET_NULL, null=True, blank=True, related_name='pedidos')
+    latitud_destino = models.FloatField(null=True, blank=True)
+    longitud_destino = models.FloatField(null=True, blank=True)
+
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -115,7 +183,6 @@ class DetallePedido(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        # Si no se colocó un precio manual, asigna el precio actual del producto
         if self.precio_unitario_usd is None and self.producto_id:
             self.precio_unitario_usd = self.producto.precio_usd
         super().save(*args, **kwargs)

@@ -8,6 +8,7 @@ import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
+import { useLocationStore } from './store/useLocationStore';
 
 export function App() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -26,20 +27,39 @@ export function App() {
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
 
+  // Extraemos todo el store de Zustand para evitar funciones indefinidas
+  const locationStore = useLocationStore((state: any) => state);
+  const currentSedeId = locationStore.currentSedeId || locationStore.selectedSede;
+
+  // Handler seguro para actualizar la sede seleccionada en Zustand
+  const handleSelectSede = (sede: any) => {
+    const val = sede?.id_slug || sede?.id || String(sede);
+    
+    if (typeof locationStore.setCurrentSedeId === 'function') {
+      locationStore.setCurrentSedeId(val);
+    } else if (typeof locationStore.setSedeId === 'function') {
+      locationStore.setSedeId(val);
+    } else if (typeof locationStore.setSelectedSede === 'function') {
+      locationStore.setSelectedSede(val);
+    } else if (typeof locationStore.setSede === 'function') {
+      locationStore.setSede(val);
+    } else {
+      console.error('No se encontró función setter en useLocationStore', locationStore);
+    }
+  };
+
   // Cargar productos y categorías dinámicas desde la API de Django
   useEffect(() => {
     const fetchCatalogo = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
         
-        // 1. Petición a la API de productos
         const response = await fetch(`${apiUrl}/api/productos/`);
         if (!response.ok) {
           throw new Error('Error al obtener la lista de productos');
         }
         const data = await response.json();
         
-        // Formatear precios a número para el cálculo
         const productosFormateados = data.map((prod: any) => ({
           ...prod,
           precio_usd: parseFloat(prod.precio_usd) || 0,
@@ -48,7 +68,6 @@ export function App() {
 
         setProductos(productosFormateados);
 
-        // 2. Extraer categorías únicas reales asociadas a los productos en Django Admin
         const nombresCategorias = Array.from(
           new Set(
             data
@@ -77,8 +96,31 @@ export function App() {
     fetchCatalogo();
   }, []);
 
-  // Lógica de Filtrado dinámico por Búsqueda + Categoría Seleccionada
+  // Lógica de Filtrado por Sede Seleccionada + Búsqueda + Categoría
   const productosFiltrados = productos.filter((prod: any) => {
+    // 1. FILTRO DE SEDE MULTIFORMATO
+    const sedesDelProducto = prod.sedes_disponibles || prod.sedes || [];
+
+    if (currentSedeId) {
+      const perteneceAEstaSede = sedesDelProducto.some((s: any) => {
+        const rawSedeProd = String(typeof s === 'object' ? (s.id_slug || s.nombre || s.id) : s);
+        const rawSedeSeleccionada = String(currentSedeId);
+
+        const normProd = rawSedeProd.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normSeleccionada = rawSedeSeleccionada.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        return (
+          normProd === normSeleccionada ||
+          normProd.includes(normSeleccionada) ||
+          normSeleccionada.includes(normProd) ||
+          String(s.id) === String(currentSedeId)
+        );
+      });
+
+      if (!perteneceAEstaSede) return false;
+    }
+
+    // 2. FILTRO DE BÚSQUEDA
     const query = searchQuery.toLowerCase();
     const categoriaProd = String(prod.categoria_nombre || prod.categoria?.nombre || prod.categoria || '').toLowerCase();
     
@@ -87,6 +129,7 @@ export function App() {
       categoriaProd.includes(query) ||
       (prod.descripcion && prod.descripcion.toLowerCase().includes(query));
 
+    // 3. FILTRO DE CATEGORÍA
     const coincideCategoria = 
       selectedCategory === 'TODOS' || 
       categoriaProd.toUpperCase().includes(selectedCategory.toUpperCase());
@@ -115,13 +158,14 @@ export function App() {
 
   const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
-  // VISTA 2: FLUJO DE CHECKOUT + MODAL DE SEGUIMIENTO
+  // VISTA 2: CHECKOUT
   if (view === 'checkout') {
     return (
       <>
         <Checkout
           onBack={() => setView('home')}
           onConfirmOrder={() => {
+            setView('home');
             setShowTracking(true);
           }}
         />
@@ -143,7 +187,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#0d0c0a] text-neutral-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-neutral-950">
       <div>
-        {/* Navbar con Búsqueda, Categorías dinámicas de Django y Tracking */}
+        {/* Navbar */}
         <Navbar 
           onSearch={(query) => setSearchQuery(query)}
           selectedCategory={selectedCategory}
@@ -152,11 +196,14 @@ export function App() {
           onOpenTracking={() => setShowTracking(true)}
         />
 
-        {/* Hero Banner */}
-        <Hero />
+        {/* Hero Banner enlazado al handler seguro */}
+        <Hero 
+          sedeSeleccionadaSlug={currentSedeId}
+          onSelectSede={handleSelectSede}
+        />
 
         {/* Sección Ofertas de Medianoche */}
-        <main className="max-w-7xl mx-auto px-6 py-12">
+        <main id="catalogo" className="max-w-7xl mx-auto px-6 py-12">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 border-b border-[#262016] pb-6">
             <div>
               <div className="flex items-center gap-2 text-amber-400 font-bold text-xl md:text-2xl">
@@ -189,7 +236,7 @@ export function App() {
             </div>
           </div>
 
-          {/* Grid de Productos Filtrados Dinámicamente */}
+          {/* Grid de Productos Filtrados */}
           {loading ? (
             <div className="text-center py-12 text-amber-400 font-bold">
               Cargando catálogo desde el servidor...
@@ -200,7 +247,7 @@ export function App() {
             </div>
           ) : productosFiltrados.length === 0 ? (
             <div className="text-center py-12 text-neutral-400">
-              No se encontraron productos que coincidan con la búsqueda o categoría seleccionada.
+              No se encontraron productos disponibles para esta sede o categoría seleccionada.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -208,6 +255,7 @@ export function App() {
                 <OfferCard
                   key={prod.id}
                   producto={prod}
+                  selectedSede={currentSedeId}
                   onSelect={(p) => setSelectedProduct(p)}
                 />
               ))}
@@ -216,7 +264,7 @@ export function App() {
         </main>
       </div>
 
-      {/* Botón Flotante para Rastrear Delivery (Inferior Izquierda) */}
+      {/* Botón Flotante para Rastrear Delivery */}
       <div className="fixed bottom-6 left-6 z-40">
         <button
           onClick={() => setShowTracking(true)}
@@ -232,7 +280,7 @@ export function App() {
         </button>
       </div>
 
-      {/* Widget Flotante del Carrito (Inferior Derecha) */}
+      {/* Widget Flotante del Carrito */}
       {totalItems > 0 && (
         <div className="fixed bottom-6 right-6 z-40">
           <button
