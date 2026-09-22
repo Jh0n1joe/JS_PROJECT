@@ -63,7 +63,13 @@ class ProductoListView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         
-        return Response(ProductoSerializer(productos, many=True).data)
+        return Response(
+            ProductoSerializer(
+                productos,
+                many=True,
+                context={'request': request},
+            ).data
+        )
 
 
 class CrearPedidoView(APIView):

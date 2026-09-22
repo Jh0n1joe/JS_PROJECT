@@ -25,7 +25,7 @@ class Repartidor(models.Model):
     telefono = models.CharField(max_length=30)
     vehiculo = models.CharField(max_length=100, default='Moto Bera - Placa AB123C')
     calificacion = models.DecimalField(max_digits=2, decimal_places=1, default=5.0)
-    foto_url = models.URLField(max_length=500, blank=True, null=True)
+    foto = models.ImageField(upload_to='repartidores/', blank=True, null=True, verbose_name="Foto del repartidor")
     latitud_actual = models.FloatField(default=10.1333)
     longitud_actual = models.FloatField(default=-64.7000)
     activo = models.BooleanField(default=True)
@@ -90,7 +90,14 @@ class Producto(models.Model):
     precio_anterior_usd = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     descuento_porcentaje = models.IntegerField(blank=True, null=True)
     activo = models.BooleanField(default=True)
-    imagen = models.URLField(max_length=500, blank=True, null=True)
+    imagen = models.ImageField(upload_to='productos/', blank=True, null=True, verbose_name="Imagen del producto")
+    imagen = models.ImageField(upload_to='productos/', blank=True, null=True)
+
+    @property
+    def get_imagen_url(self):
+        if self.imagen:
+            return self.imagen.url
+        return self.imagen_url or ''
     
     # Sedes donde el producto tiene stock / disponibilidad
     sedes = models.ManyToManyField(Sede, related_name='productos', blank=True)
@@ -210,7 +217,7 @@ class ComprobantePago(models.Model):
     numero_referencia = models.CharField(max_length=100)
     banco_origen = models.CharField(max_length=100)
     monto_pagado_bs = models.DecimalField(max_digits=16, decimal_places=2)
-    captura_url = models.URLField(blank=True, null=True)
+    captura = models.ImageField(upload_to='comprobantes/', blank=True, null=True, verbose_name="Captura del pago")
 
     def __str__(self):
         return f'Comprobante {self.numero_referencia}'

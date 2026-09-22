@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 from django.db import transaction
 from rest_framework import serializers
 
@@ -44,6 +43,8 @@ class ProductoSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source='categoria.nombre', read_only=True)
     precio_bs = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     maridajes = MaridajeSerializer(many=True, read_only=True)
+    imagen = serializers.SerializerMethodField()
+    
     # Devuelve la lista de slugs de las sedes asociadas al producto (ej: ['barcelona-centro', 'lecheria-plaza'])
     sedes_disponibles = serializers.SlugRelatedField(
         many=True,
@@ -68,6 +69,23 @@ class ProductoSerializer(serializers.ModelSerializer):
             'maridajes',
             'sedes_disponibles',
         )
+
+    def get_imagen(self, obj):
+        if not obj.imagen:
+            return None
+
+        image_str = str(obj.imagen)
+
+        # Si ya es una URL remota completa (ej. Supabase, S3, Unsplash)
+        if image_str.startswith(('http://', 'https://')):
+            return image_str
+
+        # Si es un archivo local subido desde el admin de Django
+        request = self.context.get('request')
+        if request is not None:
+            return request.build_absolute_uri(obj.imagen.url)
+
+        return f'http://127.0.0.1:8000{obj.imagen.url}'
 
 
 class DetallePedidoSerializer(serializers.ModelSerializer):

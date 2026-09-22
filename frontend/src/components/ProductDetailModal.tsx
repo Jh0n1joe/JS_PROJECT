@@ -14,14 +14,16 @@ export const ProductDetailModal: React.FC<Props> = ({ producto, onClose }) => {
   const addToCart = useCartStore((state) => state.addToCart);
 
   // Formatear URL de imagen procedente de Django o fallback
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-  const rawImage = producto.imagen_url || (producto as any).imagen;
+const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  const imageUrl = rawImage
-    ? rawImage.startsWith('http')
-      ? rawImage
-      : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
-    : 'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80';
+// Comprobamos en orden: producto.imagen (del serializer) o producto.imagen_url
+const rawImage = (producto as any).imagen || producto.imagen_url;
+
+const imageUrl = (rawImage && typeof rawImage === 'string' && rawImage.trim() !== '')
+  ? rawImage.startsWith('http')
+    ? rawImage
+    : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+  : 'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80';
 
   const precioBs = (producto.precio_usd * TASA_BCV).toLocaleString('es-VE', {
     minimumFractionDigits: 2,

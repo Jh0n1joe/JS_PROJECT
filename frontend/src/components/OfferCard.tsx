@@ -18,6 +18,15 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
   // 2. Un producto está disponible para comprar si tiene stock
   const sePuedeComprar = tieneStock;
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const rawImage = (producto as any).imagen || producto.imagen_url;
+
+const imageUrl = rawImage
+  ? rawImage.startsWith('http')
+    ? rawImage
+    : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+  : 'https://images.unsplash.com/photo-1527061011665-3652c757a4d4?auto=format&fit=crop&w=600&q=80';
+
   return (
     <div 
       className={`bg-[#181612] border rounded-2xl p-4 flex flex-col justify-between transition-all group shadow-xl relative ${
@@ -57,7 +66,7 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
           }`}
         >
           <img
-            src={producto.imagen || producto.imagen_url || "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500"}
+            src={imageUrl}
             alt={producto.nombre}
             className={`max-h-full object-contain transition-transform duration-300 ${
               sePuedeComprar ? 'group-hover:scale-105' : 'grayscale'
