@@ -6,14 +6,20 @@ import { OfferCard } from './components/OfferCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
+import { VendorDashboard } from './components/VendorDashboard';
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
 import { useLocationStore } from './store/useLocationStore';
+import { useAuthStore } from './store/useAuthStore'; // Importamos el store de auth
 
 export function App() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Verificación de Rol del Usuario
+  const { user } = useAuthStore();
+  const esProveedor = user?.rol === 'PROVEEDOR';
 
   // Estados para Búsqueda y Categorías Dinámicas
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,15 +27,24 @@ export function App() {
   const [categoriasDB, setCategoriasDB] = useState<{ id: string; nombre: string }[]>([]);
 
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
-  const [view, setView] = useState<'home' | 'checkout'>('home');
+  
+  // Estado ampliado de Navegación ('home' | 'checkout' | 'proveedor')
+  const [view, setView] = useState<'home' | 'checkout' | 'proveedor'>('home');
   const [showTracking, setShowTracking] = useState(false);
   
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
 
-  // Extraemos todo el store de Zustand para evitar funciones indefinidas
+  // Extraemos el store de ubicación
   const locationStore = useLocationStore((state: any) => state);
   const currentSedeId = locationStore.currentSedeId || locationStore.selectedSede;
+
+  // Redireccionar si un Proveedor intenta entrar al Checkout
+  useEffect(() => {
+    if (esProveedor && view === 'checkout') {
+      setView('home');
+    }
+  }, [esProveedor, view]);
 
   // Handler seguro para actualizar la sede seleccionada en Zustand
   const handleSelectSede = (sede: any) => {
@@ -158,8 +173,13 @@ export function App() {
 
   const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
-  // VISTA 2: CHECKOUT
-  if (view === 'checkout') {
+  // VISTA PROVEEDOR
+  if (view === 'proveedor') {
+    return <VendorDashboard onBack={() => setView('home')} />;
+  }
+
+  // VISTA CHECKOUT (Solo si NO es proveedor)
+  if (view === 'checkout' && !esProveedor) {
     return (
       <>
         <Checkout
@@ -194,9 +214,10 @@ export function App() {
           onCategoryChange={(cat) => setSelectedCategory(cat)}
           categorias={categoriasDB}
           onOpenTracking={() => setShowTracking(true)}
+          onOpenVendorDashboard={() => setView('proveedor')}
         />
 
-        {/* Hero Banner enlazado al handler seguro */}
+        {/* Hero Banner */}
         <Hero 
           sedeSeleccionadaSlug={currentSedeId}
           onSelectSede={handleSelectSede}
@@ -280,8 +301,8 @@ export function App() {
         </button>
       </div>
 
-      {/* Widget Flotante del Carrito */}
-      {totalItems > 0 && (
+      {/* Widget Flotante del Carrito (BLOQUEADO SI ES PROVEEDOR) */}
+      {totalItems > 0 && !esProveedor && (
         <div className="fixed bottom-6 right-6 z-40">
           <button
             onClick={() => setView('checkout')}

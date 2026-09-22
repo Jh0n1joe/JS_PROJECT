@@ -1,7 +1,26 @@
 // frontend/src/components/Navbar.tsx
 import React, { useState } from 'react';
-import { MapPin, Search, Sparkles, ShoppingBag, Loader2, X, Package, Calendar, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { 
+  MapPin, 
+  Search, 
+  Sparkles, 
+  ShoppingBag, 
+  Loader2, 
+  X, 
+  Package, 
+  Calendar, 
+  CheckCircle2, 
+  AlertCircle, 
+  Filter,
+  User,
+  Store,
+  LogOut,
+  ChevronDown,
+  Settings
+} from 'lucide-react';
 import { Logo } from './Logo';
+import { useAuthStore } from '../store/useAuthStore';
+import { AuthModal } from './AuthModal';
 
 interface NavbarProps {
   onOpenCart?: () => void;
@@ -10,6 +29,7 @@ interface NavbarProps {
   selectedCategory?: string;
   categorias?: { id: string; nombre: string }[];
   onOpenTracking?: () => void;
+  onOpenVendorDashboard?: () => void; // <-- Prop declarada
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -18,12 +38,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   onCategoryChange,
   selectedCategory = 'TODOS',
   categorias = [{ id: 'TODOS', nombre: 'Todas las Categorías' }],
-  onOpenTracking 
+  onOpenTracking,
+  onOpenVendorDashboard // <-- Prop desestructurada
 }) => {
   const [locationText, setLocationText] = useState('Barcelona, Anzoátegui');
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Estado de Autenticación
+  const { user, logout } = useAuthStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
   // Estado para el modal de Historial
   const [showHistory, setShowHistory] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
@@ -35,7 +61,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     setLoadingOrders(true);
     setOrdersError(null);
     try {
-      // Obtener los IDs guardados al realizar Checkout en este dispositivo
       const localIds: number[] = JSON.parse(localStorage.getItem('my_orders') || '[]');
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -48,12 +73,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       const data = await response.json();
       const listaCompleta: any[] = Array.isArray(data) ? data : data.results || [];
 
-      // Filtrar para mostrar solo las órdenes del cliente
       const misPedidos = localIds.length > 0
         ? listaCompleta.filter((order) => localIds.includes(order.id))
         : listaCompleta;
 
-      // Ordenar descendente (más reciente primero)
       misPedidos.sort((a, b) => b.id - a.id);
       setOrders(misPedidos);
     } catch (e: any) {
@@ -175,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
 
-            {/* SELECTOR DE FILTRO DE CATEGORÍA (CARGADO DESDE DJANGO) */}
+            {/* SELECTOR DE FILTRO DE CATEGORÍA */}
             <div className="relative shrink-0 hidden md:block">
               <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none" />
               <select
@@ -193,7 +216,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           </div>
 
-          {/* SECCIÓN DERECHA */}
+          {/* SECCIÓN DERECHA: EXPRESS + MIS PEDIDOS + ICONO/PERFIL USUARIO */}
           <div className="flex items-center gap-3 shrink-0">
             
             {/* BADGE EXPRESS 24/7 */}
@@ -202,19 +225,101 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Express 24/7</span>
             </div>
 
-            {/* BOTÓN MIS PEDIDOS */}
-            <button
-              onClick={handleOpenHistory}
-              type="button"
-              className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/40 text-white font-bold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 cursor-pointer"
-            >
-              <ShoppingBag size={16} className="text-amber-400" />
-              <span>Mis Pedidos</span>
-            </button>
+            {/* SI ES CLIENTE O NO REGISTRADO: Muestra "Mis Pedidos" */}
+            {(!user || user.rol === 'CLIENTE') && (
+              <button
+                onClick={handleOpenHistory}
+                type="button"
+                className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/40 text-white font-bold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 cursor-pointer"
+              >
+                <ShoppingBag size={16} className="text-amber-400" />
+                <span className="hidden sm:inline">Mis Pedidos</span>
+              </button>
+            )}
+
+            {/* ICONO Y MENÚ DESPLEGABLE DE USUARIO */}
+            <div className="relative">
+              {user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    type="button"
+                    className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/50 px-3 py-2 rounded-full transition-all cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 font-bold text-xs">
+                      {user.rol === 'PROVEEDOR' ? <Store size={15} /> : <User size={15} />}
+                    </div>
+                    <div className="text-left hidden md:block">
+                      <p className="text-xs font-bold text-white leading-none">{user.nombre}</p>
+                      <span className="text-[10px] text-amber-400 font-medium">
+                        {user.rol === 'PROVEEDOR' ? 'Proveedor' : 'Cliente'}
+                      </span>
+                    </div>
+                    <ChevronDown size={14} className="text-neutral-400" />
+                  </button>
+
+                  {/* DESPLEGABLE DEL PERFIL */}
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-[#14120e] border border-[#2a2419] rounded-xl shadow-2xl py-2 z-50 space-y-1">
+                      <div className="px-3 py-1.5 border-b border-[#221c13] text-xs">
+                        <p className="text-white font-bold truncate">{user.nombre}</p>
+                        <p className="text-neutral-500 text-[10px] truncate">{user.email}</p>
+                      </div>
+
+                      {user.rol === 'CLIENTE' ? (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            handleOpenHistory();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Package size={14} /> Mis Pedidos
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            if (onOpenVendorDashboard) onOpenVendorDashboard();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Settings size={14} /> Gestionar Mi Sede
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          logout();
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors border-t border-[#221c13] cursor-pointer"
+                      >
+                        <LogOut size={14} /> Cerrar Sesión
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* BOTÓN INGRESAR / REGISTRO SI NO HA INICIADO SESIÓN */
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  type="button"
+                  className="bg-amber-400 hover:bg-amber-500 text-neutral-950 font-black text-xs px-4 py-2.5 rounded-full flex items-center gap-2 transition-all shadow-md shadow-amber-400/10 cursor-pointer active:scale-95"
+                >
+                  <User size={16} />
+                  <span className="hidden sm:inline">Ingresar</span>
+                </button>
+              )}
+            </div>
+
           </div>
 
         </div>
       </header>
+
+      {/* MODAL DE AUTENTICACIÓN */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
 
       {/* MODAL HISTORIAL DE PEDIDOS */}
       {showHistory && (
@@ -288,7 +393,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </span>
                       </div>
 
-                      {/* Productos incluidos en la compra */}
+                      {/* Productos incluidos */}
                       {itemsList.length > 0 && (
                         <div className="bg-[#0e0d0a] p-2.5 rounded-lg border border-[#221c13] space-y-1 my-2">
                           {itemsList.map((item: any, i: number) => (
