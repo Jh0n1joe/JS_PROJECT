@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
@@ -10,6 +9,7 @@ class Sede(models.Model):
     direccion = models.TextField()
     tiempo_estimado = models.CharField(max_length=30, default='10-15 MIN')
     distancia = models.CharField(max_length=30, default='1.2 km')
+    imagen = models.ImageField(upload_to='sedes/', blank=True, null=True)
     activa = models.BooleanField(default=True)
 
     class Meta:
@@ -83,22 +83,15 @@ class Categoria(models.Model):
 
 class Producto(models.Model):
     nombre = models.CharField(max_length=150)
-    descripcion = models.TextField(blank=True, null=True, verbose_name="Descripción")
+    descripcion = models.TextField(blank=True, null=True)
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='productos')
     stock = models.PositiveIntegerField(default=0)
     precio_usd = models.DecimalField(max_digits=10, decimal_places=2)
     precio_anterior_usd = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     descuento_porcentaje = models.IntegerField(blank=True, null=True)
     activo = models.BooleanField(default=True)
-    imagen = models.URLField(max_length=500, blank=True, null=True)
-    
-    # Sedes donde el producto tiene stock / disponibilidad
+    imagen = models.ImageField(upload_to='productos/', blank=True, null=True)
     sedes = models.ManyToManyField(Sede, related_name='productos', blank=True)
-
-    class Meta:
-        ordering = ('nombre',)
-        verbose_name = 'producto'
-        verbose_name_plural = 'productos'
 
     def __str__(self):
         return self.nombre
@@ -106,9 +99,9 @@ class Producto(models.Model):
     @property
     def precio_bs(self):
         tasa = TasaCambio.obtener_tasa_activa()
-        if tasa is None:
-            raise TasaCambio.DoesNotExist('No existe una tasa de cambio activa configurada.')
-        return (self.precio_usd * tasa.valor_bs).quantize(Decimal('0.01'))
+        if tasa and tasa.valor_bs:
+            return (self.precio_usd * tasa.valor_bs).quantize(Decimal('0.01'))
+        return Decimal('0.00')
 
 
 class Maridaje(models.Model):
@@ -119,7 +112,7 @@ class Maridaje(models.Model):
         FRUTOS_SECOS = 'frutos_secos', 'Frutos Secos'
 
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='maridajes')
-    tipo = models.CharField(max_length=30, choices=TipoMaridaje.choices)
+    tipo = models.CharField(max_length=30, choices=TipoMaridaje.choices, default=TipoMaridaje.FRITURAS)
     nombre = models.CharField(max_length=100)
 
     class Meta:
@@ -143,9 +136,7 @@ class Pedido(models.Model):
         ENTREGADO = 'ENTREGADO', 'Entregado'
         CANCELADO = 'CANCELADO', 'Cancelado'
 
-    # Sede desde la que se despacho el pedido
     sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name='pedidos', null=True, blank=True)
-    
     nombre_cliente = models.CharField(max_length=150)
     telefono = models.CharField(max_length=30)
     direccion_entrega = models.TextField()
@@ -156,11 +147,9 @@ class Pedido(models.Model):
     metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices)
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.RECIBIDO)
     tiempo_estimado = models.CharField(max_length=30, default='15-25 MIN')
-    
     repartidor = models.ForeignKey(Repartidor, on_delete=models.SET_NULL, null=True, blank=True, related_name='pedidos')
     latitud_destino = models.FloatField(null=True, blank=True)
     longitud_destino = models.FloatField(null=True, blank=True)
-
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -174,7 +163,6 @@ class DetallePedido(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='detalles')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='detalles_pedido')
     cantidad = models.PositiveIntegerField(default=1)
-
     precio_unitario_usd = models.DecimalField(
         max_digits=10,
         decimal_places=2,

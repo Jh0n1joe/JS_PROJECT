@@ -1,5 +1,9 @@
 // frontend/src/components/Navbar.tsx
+<<<<<<< HEAD
 import React, { useState } from 'react';
+=======
+import React, { useState, useEffect } from 'react';
+>>>>>>> a493002 (error de imagenes)
 import { 
   MapPin, 
   Search, 
@@ -13,10 +17,16 @@ import {
   AlertCircle, 
   Filter,
   User,
+<<<<<<< HEAD
   Store,
   LogOut,
   ChevronDown,
   Settings
+=======
+  LogOut,
+  Settings,
+  ChevronDown
+>>>>>>> a493002 (error de imagenes)
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuthStore } from '../store/useAuthStore';
@@ -29,7 +39,12 @@ interface NavbarProps {
   selectedCategory?: string;
   categorias?: { id: string; nombre: string }[];
   onOpenTracking?: () => void;
+<<<<<<< HEAD
   onOpenVendorDashboard?: () => void; // <-- Prop declarada
+=======
+  onOpenAuthModal?: () => void; // Callback para abrir el modal de Auth/Login
+  onOpenVendorDashboard?: () => void; // Callback para ir al panel de Proveedor
+>>>>>>> a493002 (error de imagenes)
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -39,15 +54,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedCategory = 'TODOS',
   categorias = [{ id: 'TODOS', nombre: 'Todas las Categorías' }],
   onOpenTracking,
+<<<<<<< HEAD
   onOpenVendorDashboard // <-- Prop desestructurada
+=======
+  onOpenAuthModal,
+  onOpenVendorDashboard
+>>>>>>> a493002 (error de imagenes)
 }) => {
   const [locationText, setLocationText] = useState('Barcelona, Anzoátegui');
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
+<<<<<<< HEAD
   // Estado de Autenticación
   const { user, logout } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
+=======
+  // Estado para Sesión del Usuario y Menú Desplegable
+  const [user, setUser] = useState<any>(null);
+>>>>>>> a493002 (error de imagenes)
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Estado para el modal de Historial
@@ -55,6 +80,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+
+  // Cargar usuario desde localStorage al montar el componente
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error al parsear usuario:', e);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    setShowUserMenu(false);
+    window.location.reload();
+  };
 
   // Cargar únicamente los pedidos del usuario actual
   const loadOrders = async () => {
@@ -225,6 +270,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Express 24/7</span>
             </div>
 
+<<<<<<< HEAD
             {/* SI ES CLIENTE O NO REGISTRADO: Muestra "Mis Pedidos" */}
             {(!user || user.rol === 'CLIENTE') && (
               <button
@@ -313,6 +359,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
+=======
+            {/* BOTÓN MIS PEDIDOS */}
+            <button
+              onClick={handleOpenHistory}
+              type="button"
+              className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/40 text-white font-bold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 cursor-pointer"
+            >
+              <ShoppingBag size={16} className="text-amber-400" />
+              <span className="hidden sm:inline">Mis Pedidos</span>
+            </button>
+
+            {/* AUTENTICACIÓN / MENÚ DE USUARIO */}
+            {user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  type="button"
+                  className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold text-xs px-3.5 py-2.5 rounded-full transition-all cursor-pointer"
+                >
+                  <User size={15} />
+                  <span className="max-w-[100px] truncate">{user.nombre}</span>
+                  <ChevronDown size={14} className={`transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* DROPDOWN DEL USUARIO */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-[#12100d] border border-[#2e2619] rounded-xl shadow-2xl py-1.5 z-50 animate-fade-in">
+                    <div className="px-3 py-2 border-b border-[#262016]">
+                      <p className="text-xs font-bold text-white truncate">{user.nombre}</p>
+                      <p className="text-[10px] text-amber-400/80 font-mono uppercase">{user.rol || 'CLIENTE'}</p>
+                    </div>
+
+                    {user.rol === 'PROVEEDOR' && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          if (onOpenVendorDashboard) onOpenVendorDashboard();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Settings size={14} /> Gestionar Mi Sede
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-[#221d15] flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <LogOut size={14} /> Cerrar Sesión
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={onOpenAuthModal}
+                type="button"
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 shadow-lg shadow-amber-500/10 cursor-pointer"
+              >
+                <User size={16} />
+                <span>Iniciar Sesión</span>
+              </button>
+            )}
+
+>>>>>>> a493002 (error de imagenes)
           </div>
 
         </div>

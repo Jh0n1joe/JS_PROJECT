@@ -18,6 +18,16 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
   // 2. Un producto está disponible para comprar si tiene stock
   const sePuedeComprar = tieneStock;
 
+  // 3. Resolución dinámica de la URL de la Imagen (Django API / Cloud / Fallback)
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const rawImage = producto.imagen_url || producto.imagen;
+
+  const imageUrl = rawImage
+    ? rawImage.startsWith('http')
+      ? rawImage
+      : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+    : 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500';
+
   return (
     <div 
       className={`bg-[#181612] border rounded-2xl p-4 flex flex-col justify-between transition-all group shadow-xl relative ${
@@ -57,7 +67,7 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
           }`}
         >
           <img
-            src={producto.imagen || producto.imagen_url || "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500"}
+            src={imageUrl}
             alt={producto.nombre}
             className={`max-h-full object-contain transition-transform duration-300 ${
               sePuedeComprar ? 'group-hover:scale-105' : 'grayscale'
@@ -79,7 +89,9 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
             {producto.nombre}
           </h3>
           <p className="text-neutral-500 text-xs mt-0.5 font-medium line-clamp-1">
-            {producto.subcategoria || producto.categoria}
+            {typeof producto.categoria === 'object'
+              ? (producto.categoria as any).nombre
+              : producto.subcategoria || producto.categoria}
           </p>
         </div>
       </div>

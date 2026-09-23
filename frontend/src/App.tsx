@@ -1,12 +1,18 @@
+// App.tsx
 import { useState, useEffect } from 'react';
-import { Clock, ShoppingBag, MapPin } from 'lucide-react';
+import { Clock, ShoppingBag, MapPin, Plus } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { OfferCard } from './components/OfferCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
+<<<<<<< HEAD
 import { VendorDashboard } from './components/VendorDashboard';
+=======
+import { AuthModal } from './components/AuthModal';
+import { AddProductModal } from './components/AddProductModal'; // NUEVO IMPORT
+>>>>>>> a493002 (error de imagenes)
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
 import { useLocationStore } from './store/useLocationStore';
@@ -31,7 +37,12 @@ export function App() {
   // Estado ampliado de Navegación ('home' | 'checkout' | 'proveedor')
   const [view, setView] = useState<'home' | 'checkout' | 'proveedor'>('home');
   const [showTracking, setShowTracking] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   
+  // ESTADOS PARA PROVEEDORES Y AÑADIR PRODUCTOS
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -39,12 +50,26 @@ export function App() {
   const locationStore = useLocationStore((state: any) => state);
   const currentSedeId = locationStore.currentSedeId || locationStore.selectedSede;
 
+<<<<<<< HEAD
   // Redireccionar si un Proveedor intenta entrar al Checkout
   useEffect(() => {
     if (esProveedor && view === 'checkout') {
       setView('home');
     }
   }, [esProveedor, view]);
+=======
+  // Cargar usuario almacenado en LocalStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (err) {
+        console.error('Error parseando el usuario guardado:', err);
+      }
+    }
+  }, []);
+>>>>>>> a493002 (error de imagenes)
 
   // Handler seguro para actualizar la sede seleccionada en Zustand
   const handleSelectSede = (sede: any) => {
@@ -63,51 +88,52 @@ export function App() {
     }
   };
 
-  // Cargar productos y categorías dinámicas desde la API de Django
-  useEffect(() => {
-    const fetchCatalogo = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-        
-        const response = await fetch(`${apiUrl}/api/productos/`);
-        if (!response.ok) {
-          throw new Error('Error al obtener la lista de productos');
-        }
-        const data = await response.json();
-        
-        const productosFormateados = data.map((prod: any) => ({
-          ...prod,
-          precio_usd: parseFloat(prod.precio_usd) || 0,
-          precio_bs: parseFloat(prod.precio_bs) || 0,
-        }));
-
-        setProductos(productosFormateados);
-
-        const nombresCategorias = Array.from(
-          new Set(
-            data
-              .map((p: any) => p.categoria_nombre || p.categoria?.nombre || p.categoria)
-              .filter(Boolean)
-          )
-        );
-
-        const listaCats = [
-          { id: 'TODOS', nombre: 'Todas las Categorías' },
-          ...nombresCategorias.map((c: any) => ({
-            id: String(c).toUpperCase(),
-            nombre: String(c),
-          })),
-        ];
-
-        setCategoriasDB(listaCats);
-      } catch (err: any) {
-        console.error(err);
-        setError('No se pudieron cargar los datos del servidor.');
-      } finally {
-        setLoading(false);
+  // Cargar productos y categorías dinámicas desde la API
+  const fetchCatalogo = async () => {
+    try {
+      setLoading(true);
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      
+      const response = await fetch(`${apiUrl}/api/productos/`);
+      if (!response.ok) {
+        throw new Error('Error al obtener la lista de productos');
       }
-    };
+      const data = await response.json();
+      
+      const productosFormateados = data.map((prod: any) => ({
+        ...prod,
+        precio_usd: parseFloat(prod.precio_usd) || 0,
+        precio_bs: parseFloat(prod.precio_bs) || 0,
+      }));
 
+      setProductos(productosFormateados);
+
+      const nombresCategorias = Array.from(
+        new Set(
+          data
+            .map((p: any) => p.categoria_nombre || p.categoria?.nombre || p.categoria)
+            .filter(Boolean)
+        )
+      );
+
+      const listaCats = [
+        { id: 'TODOS', nombre: 'Todas las Categorías' },
+        ...nombresCategorias.map((c: any) => ({
+          id: String(c).toUpperCase(),
+          nombre: String(c),
+        })),
+      ];
+
+      setCategoriasDB(listaCats);
+    } catch (err: any) {
+      console.error(err);
+      setError('No se pudieron cargar los datos del servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchCatalogo();
   }, []);
 
@@ -214,7 +240,11 @@ export function App() {
           onCategoryChange={(cat) => setSelectedCategory(cat)}
           categorias={categoriasDB}
           onOpenTracking={() => setShowTracking(true)}
+<<<<<<< HEAD
           onOpenVendorDashboard={() => setView('proveedor')}
+=======
+          onOpenAuthModal={() => setIsAuthOpen(true)}
+>>>>>>> a493002 (error de imagenes)
         />
 
         {/* Hero Banner */}
@@ -301,8 +331,26 @@ export function App() {
         </button>
       </div>
 
+<<<<<<< HEAD
       {/* Widget Flotante del Carrito (BLOQUEADO SI ES PROVEEDOR) */}
       {totalItems > 0 && !esProveedor && (
+=======
+      {/* BOTÓN FLOTANTE PARA AÑADIR PRODUCTO (Solo visible para Proveedores) */}
+      {currentUser?.rol === 'PROVEEDOR' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+          <button
+            onClick={() => setIsAddProductOpen(true)}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-black px-6 py-3.5 rounded-full shadow-2xl shadow-amber-500/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer border border-amber-300 hover:scale-105"
+          >
+            <Plus size={20} className="stroke-[3]" />
+            <span className="text-xs uppercase tracking-wider">Añadir Producto</span>
+          </button>
+        </div>
+      )}
+
+      {/* Widget Flotante del Carrito */}
+      {totalItems > 0 && (
+>>>>>>> a493002 (error de imagenes)
         <div className="fixed bottom-6 right-6 z-40">
           <button
             onClick={() => setView('checkout')}
@@ -333,6 +381,21 @@ export function App() {
           onClose={() => setSelectedProduct(null)}
         />
       )}
+
+      {/* Modal de Autenticación */}
+      <AuthModal 
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccessLogin={(user) => setCurrentUser(user)}
+      />
+
+      {/* Modal para Añadir Productos (Proveedor) */}
+      <AddProductModal
+        isOpen={isAddProductOpen}
+        onClose={() => setIsAddProductOpen(false)}
+        onProductAdded={fetchCatalogo}
+        categorias={categoriasDB}
+      />
 
       {/* Modal de Seguimiento / Delivery */}
       {showTracking && (
