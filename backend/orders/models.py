@@ -198,7 +198,6 @@ class ComprobantePago(models.Model):
     numero_referencia = models.CharField(max_length=100)
     banco_origen = models.CharField(max_length=100)
     monto_pagado_bs = models.DecimalField(max_digits=16, decimal_places=2)
-    captura_url = models.URLField(blank=True, null=True)
 
     def __str__(self):
         return f'Comprobante {self.numero_referencia}'

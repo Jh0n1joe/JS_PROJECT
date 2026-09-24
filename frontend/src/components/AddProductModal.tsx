@@ -26,9 +26,9 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   const [descripcion, setDescripcion] = useState('');
   const [precioUsd, setPrecioUsd] = useState('');
   const [precioBs, setPrecioBs] = useState('');
-  const [stock, setStock] = useState('10'); // 4. Campo de Cantidad/Stock
+  const [stock, setStock] = useState('10');
   const [categoria, setCategoria] = useState('');
-  const [maridajesSeleccionados, setMaridajesSeleccionados] = useState<string[]>([]); // 2. Maridajes
+  const [maridajesSeleccionados, setMaridajesSeleccionados] = useState<string[]>([]);
   const [imagen, setImagen] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -40,6 +40,18 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     setMaridajesSeleccionados((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  const resetForm = () => {
+    setNombre('');
+    setDescripcion('');
+    setPrecioUsd('');
+    setPrecioBs('');
+    setStock('10');
+    setCategoria('');
+    setMaridajesSeleccionados([]);
+    setImagen(null);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,31 +70,36 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       formData.append('descripcion', descripcion);
       formData.append('precio_usd', precioUsd);
       formData.append('precio_bs', precioBs);
-      formData.append('stock', stock); // 4. Enviar stock
+      formData.append('stock', stock);
       formData.append('categoria', categoria);
-      
-      // 3. Enviar id de la sede activa del usuario
+
       if (user?.sede_id) {
         formData.append('sede_id', user.sede_id);
       }
 
-      // 2. Enviar maridajes seleccionados en formato JSON
       formData.append('maridajes', JSON.stringify(maridajesSeleccionados));
 
-      // 5. Enviar la imagen
-      if (imagen) formData.append('imagen', imagen);
+      if (imagen) {
+        formData.append('imagen', imagen);
+      }
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const response = await fetch(`${apiUrl}/api/productos/crear/`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: formData,
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Error al guardar el producto.');
+      if (!response.ok) {
+        throw new Error(data.error || data.detail || 'Error al guardar el producto.');
+      }
 
+      resetForm();
       onProductAdded();
       onClose();
     } catch (err: any) {
@@ -96,7 +113,10 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="bg-[#12100d] border border-[#2e2619] text-neutral-200 rounded-2xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
         <button
-          onClick={onClose}
+          onClick={() => {
+            resetForm();
+            onClose();
+          }}
           className="absolute top-4 right-4 p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-[#221d16] transition-colors cursor-pointer"
         >
           <X size={18} />
@@ -157,7 +177,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
               </select>
             </div>
 
-            {/* 4. Campo de Cantidad / Stock */}
             <div>
               <label className="block text-[11px] font-bold text-neutral-400 uppercase mb-1">
                 Stock / Cantidad
@@ -212,7 +231,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Sección para Maridajes Recomendados */}
           <div>
             <label className="block text-[11px] font-bold text-neutral-400 uppercase mb-1 flex items-center gap-1">
               <Utensils size={13} className="text-amber-500" /> Maridajes Sugeridos
@@ -251,7 +269,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             />
           </div>
 
-          {/* 5. Subida de foto de producto */}
           <div>
             <label className="block text-[11px] font-bold text-neutral-400 uppercase mb-1">
               Imagen del Producto

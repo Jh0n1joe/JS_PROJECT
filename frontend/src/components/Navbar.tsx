@@ -1,9 +1,5 @@
 // frontend/src/components/Navbar.tsx
-<<<<<<< HEAD
-import React, { useState } from 'react';
-=======
 import React, { useState, useEffect } from 'react';
->>>>>>> a493002 (error de imagenes)
 import { 
   MapPin, 
   Search, 
@@ -17,20 +13,12 @@ import {
   AlertCircle, 
   Filter,
   User,
-<<<<<<< HEAD
   Store,
   LogOut,
   ChevronDown,
   Settings
-=======
-  LogOut,
-  Settings,
-  ChevronDown
->>>>>>> a493002 (error de imagenes)
 } from 'lucide-react';
 import { Logo } from './Logo';
-import { useAuthStore } from '../store/useAuthStore';
-import { AuthModal } from './AuthModal';
 
 interface NavbarProps {
   onOpenCart?: () => void;
@@ -39,40 +27,24 @@ interface NavbarProps {
   selectedCategory?: string;
   categorias?: { id: string; nombre: string }[];
   onOpenTracking?: () => void;
-<<<<<<< HEAD
-  onOpenVendorDashboard?: () => void; // <-- Prop declarada
-=======
   onOpenAuthModal?: () => void; // Callback para abrir el modal de Auth/Login
   onOpenVendorDashboard?: () => void; // Callback para ir al panel de Proveedor
->>>>>>> a493002 (error de imagenes)
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
-  onOpenCart, 
   onSearch, 
   onCategoryChange,
   selectedCategory = 'TODOS',
   categorias = [{ id: 'TODOS', nombre: 'Todas las Categorías' }],
-  onOpenTracking,
-<<<<<<< HEAD
-  onOpenVendorDashboard // <-- Prop desestructurada
-=======
   onOpenAuthModal,
   onOpenVendorDashboard
->>>>>>> a493002 (error de imagenes)
 }) => {
   const [locationText, setLocationText] = useState('Barcelona, Anzoátegui');
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-<<<<<<< HEAD
-  // Estado de Autenticación
-  const { user, logout } = useAuthStore();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-=======
   // Estado para Sesión del Usuario y Menú Desplegable
   const [user, setUser] = useState<any>(null);
->>>>>>> a493002 (error de imagenes)
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Estado para el modal de Historial
@@ -270,7 +242,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Express 24/7</span>
             </div>
 
-<<<<<<< HEAD
             {/* SI ES CLIENTE O NO REGISTRADO: Muestra "Mis Pedidos" */}
             {(!user || user.rol === 'CLIENTE') && (
               <button
@@ -336,7 +307,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       <button
                         onClick={() => {
-                          logout();
+                          handleLogout();
                           setShowUserMenu(false);
                         }}
                         className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors border-t border-[#221c13] cursor-pointer"
@@ -349,7 +320,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 /* BOTÓN INGRESAR / REGISTRO SI NO HA INICIADO SESIÓN */
                 <button
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={onOpenAuthModal}
                   type="button"
                   className="bg-amber-400 hover:bg-amber-500 text-neutral-950 font-black text-xs px-4 py-2.5 rounded-full flex items-center gap-2 transition-all shadow-md shadow-amber-400/10 cursor-pointer active:scale-95"
                 >
@@ -359,7 +330,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-=======
             {/* BOTÓN MIS PEDIDOS */}
             <button
               onClick={handleOpenHistory}
@@ -423,14 +393,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
->>>>>>> a493002 (error de imagenes)
           </div>
 
         </div>
       </header>
-
-      {/* MODAL DE AUTENTICACIÓN */}
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
 
       {/* MODAL HISTORIAL DE PEDIDOS */}
       {showHistory && (

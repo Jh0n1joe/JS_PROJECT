@@ -28,7 +28,7 @@ class SedeListView(APIView):
     """
     def get(self, request):
         sedes = Sede.objects.filter(activa=True)
-        return Response(SedeSerializer(sedes, many=True).data, status=status.HTTP_200_OK)
+        return Response(SedeSerializer(sedes, many=True, context={'request': request}).data, status=status.HTTP_200_OK)
 
 
 class TasaCambioView(APIView):
@@ -70,7 +70,7 @@ class ProductoListView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         
-        return Response(ProductoSerializer(productos, many=True).data)
+        return Response(ProductoSerializer(productos, many=True, context={'request': request}).data)
 
 
 # --- VISTA: CREAR PRODUCTO ---
@@ -85,13 +85,8 @@ class CrearProductoView(APIView):
         descripcion = data.get('descripcion', '')
         categoria_nombre = data.get('categoria', 'Licores')
         
-        # 4. Solución: Leer stock/cantidad enviada
         stock = data.get('stock', 0)
-        
-        # 5. Solución: Recibir archivo enviado
-        imagen_file = request.FILES.get('imagen')
-        
-        # 3. Solución: Sede específica enviada desde frontend
+        imagen_file = request.FILES.get('imagen') or data.get('imagen')
         sede_id = data.get('sede_id')
 
         if not nombre or not precio_usd:
@@ -111,13 +106,11 @@ class CrearProductoView(APIView):
                     activo=True
                 )
 
-                # Asignar a la sede seleccionada
                 if sede_id:
-                    sede = Sede.objects.filter(pk=sede_id).first()
+                    sede = Sede.objects.filter(pk=sede_id).first() if str(sede_id).isdigit() else Sede.objects.filter(id_slug=sede_id).first()
                     if sede:
                         producto.sedes.add(sede)
 
-                # 2. Solución: Guardar los maridajes seleccionados
                 maridajes_raw = data.get('maridajes')
                 if maridajes_raw:
                     if isinstance(maridajes_raw, str):
@@ -146,7 +139,7 @@ class CrearProductoView(APIView):
 
             return Response({
                 'message': 'Producto creado con éxito.',
-                'producto': ProductoSerializer(producto).data
+                'producto': ProductoSerializer(producto, context={'request': request}).data
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -161,24 +154,39 @@ class CrearPedidoView(APIView):
     Soporta GET (listar pedidos) y POST (crear nuevo pedido).
     """
     def get(self, request):
-        try:
-            pedidos = Pedido.objects.all().select_related('repartidor', 'comprobante', 'sede').prefetch_related('detalles__producto').order_by('-id')
-            serializer = PedidoSerializer(pedidos, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Exception:
-            return Response([], status=status.HTTP_200_OK)
+        pedidos = Pedido.objects.all().select_related(
+            'repartidor', 'comprobante', 'sede',
+        ).prefetch_related('detalles__producto').order_by('-id')
+        serializer = PedidoSerializer(pedidos, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = PedidoCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        with transaction.atomic():
-            pedido = serializer.save()
-            respuesta = Response(PedidoSerializer(pedido).data, status=status.HTTP_201_CREATED)
-
-        transaction.on_commit(lambda: enviar_notificacion_telegram(pedido))
+        serializer = PedidoCreateSerializer(data=request.data, context={'request': request})
         
-        return respuesta
+        # 1. Valida la estructura recibida del frontend
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 2. Intenta guardar el pedido dentro de la transacción atómica
+            with transaction.atomic():
+                pedido = serializer.save()
+                respuesta_data = PedidoSerializer(pedido, context={'request': request}).data
+
+            # 3. Notificación vía Telegram tras el commit exitoso en la BD
+            try:
+                transaction.on_commit(lambda: enviar_notificacion_telegram(pedido))
+            except Exception as tel_err:
+                print(f"Error enviando notificación de Telegram: {tel_err}")
+
+            return Response(respuesta_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            # Captura errores inesperados de la base de datos o modelos para dar visibilidad en la respuesta HTTP
+            return Response(
+                {'detail': f'Error interno al procesar el pedido: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class PedidoDetalleView(APIView):
@@ -191,15 +199,12 @@ class PedidoDetalleView(APIView):
         except Pedido.DoesNotExist:
             return Response({'detail': 'Pedido no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
             
-        serializer = PedidoSerializer(pedido)
+        serializer = PedidoSerializer(pedido, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 # --- VISTAS DE AUTENTICACIÓN ---
 class LoginView(APIView):
-    """
-    Procesa el inicio de sesión del usuario.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -219,9 +224,6 @@ class LoginView(APIView):
 
 
 class RegistroView(APIView):
-    """
-    Procesa el registro y crea automáticamente la sede si se registra un proveedor.
-    """
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
@@ -238,7 +240,7 @@ class RegistroView(APIView):
 
             if rol == "PROVEEDOR":
                 direccion = data.get('direccion', 'Dirección no especificada')
-                foto_local = request.FILES.get('foto_local') or request.FILES.get('imagen')
+                foto_local = request.FILES.get('foto_local') or request.FILES.get('imagen') or data.get('foto_local')
 
                 slug_base = slugify(nombre) or "sede-proveedor"
                 slug_final = slug_base

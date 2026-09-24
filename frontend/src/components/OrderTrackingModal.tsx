@@ -105,12 +105,15 @@ export const OrderTrackingModal: React.FC<Props> = ({ onClose }) => {
     try {
       const localIds: number[] = JSON.parse(localStorage.getItem('my_orders') || '[]');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-      const response = await fetch(`${apiUrl}/api/pedidos/`);
+      const pedidoId = localIds.length > 0 ? Math.max(...localIds) : null;
+      const response = await fetch(
+        pedidoId ? `${apiUrl}/api/pedidos/${pedidoId}/` : `${apiUrl}/api/pedidos/`,
+      );
 
       if (!response.ok) throw new Error('No se pudo conectar con el servidor.');
 
       const data = await response.json();
-      const listaPedidos: Pedido[] = Array.isArray(data) ? data : data.results || [];
+      const listaPedidos: Pedido[] = Array.isArray(data) ? data : data.id ? [data] : data.results || [];
 
       const misPedidos = localIds.length > 0
         ? listaPedidos.filter((p) => localIds.includes(p.id))

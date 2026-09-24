@@ -9,7 +9,7 @@ interface Props {
   onSelect: (producto: Producto) => void;
 }
 
-export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect }) => {
+export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
   const addToCart = useCartStore((state) => state.addToCart);
 
   // 1. Evaluación estricta de Stock
@@ -18,9 +18,9 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
   // 2. Un producto está disponible para comprar si tiene stock
   const sePuedeComprar = tieneStock;
 
-  // 3. Resolución dinámica de la URL de la Imagen (Django API / Cloud / Fallback)
+  // 3. Resolución segura de la URL (si ya vino procesada de App.tsx la usa directa, si no, aplica el fallback)
   const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-  const rawImage = producto.imagen_url || producto.imagen;
+  const rawImage = producto.imagen || producto.imagen_url;
 
   const imageUrl = rawImage
     ? rawImage.startsWith('http')

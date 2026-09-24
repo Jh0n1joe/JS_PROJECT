@@ -3,17 +3,11 @@ import {
   Store, 
   Package, 
   ShoppingBag, 
-  Clock, 
-  CheckCircle2, 
-  Truck, 
   AlertCircle, 
   ArrowLeft,
-  DollarSign,
-  Power,
   RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { TASA_BCV } from '../data/mockProductos';
 
 interface Props {
   onBack: () => void;
