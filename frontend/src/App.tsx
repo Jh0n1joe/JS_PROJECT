@@ -1,19 +1,28 @@
+// App.tsx
 import { useState, useEffect } from 'react';
-import { Clock, ShoppingBag, MapPin } from 'lucide-react';
+import { Clock, ShoppingBag, MapPin, Plus } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { OfferCard } from './components/OfferCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { Checkout } from './components/Checkout';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
+import { VendorDashboard } from './components/VendorDashboard';
+import { AuthModal } from './components/AuthModal';
+import { AddProductModal } from './components/AddProductModal';
 import type { Producto } from './types';
 import { useCartStore } from './store/useCartStore';
 import { useLocationStore } from './store/useLocationStore';
+import { useAuthStore } from './store/useAuthStore'; // Importamos el store de auth
 
 export function App() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Verificación de Rol del Usuario
+  const { user } = useAuthStore();
+  const esProveedor = user?.rol === 'PROVEEDOR';
 
   // Estados para Búsqueda y Categorías Dinámicas
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,20 +30,44 @@ export function App() {
   const [categoriasDB, setCategoriasDB] = useState<{ id: string; nombre: string }[]>([]);
 
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
-  const [view, setView] = useState<'home' | 'checkout'>('home');
-  const [showTracking, setShowTracking] = useState(false);
   
+  // Estado ampliado de Navegación ('home' | 'checkout' | 'proveedor')
+  const [view, setView] = useState<'home' | 'checkout' | 'proveedor'>('home');
+  const [showTracking, setShowTracking] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Estados para proveedores y añadir productos
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
 
-  // Extraemos todo el store de Zustand para evitar funciones indefinidas
   const locationStore = useLocationStore((state: any) => state);
   const currentSedeId = locationStore.currentSedeId || locationStore.selectedSede;
 
-  // Handler seguro para actualizar la sede seleccionada en Zustand
+  // Redireccionar si un Proveedor intenta entrar al Checkout
+  useEffect(() => {
+    if (esProveedor && view === 'checkout') {
+      setView('home');
+    }
+  }, [esProveedor, view]);
+
+  // Cargar usuario almacenado en LocalStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (err) {
+        console.error('Error parseando el usuario guardado:', err);
+      }
+    }
+  }, []);
+
   const handleSelectSede = (sede: any) => {
     const val = sede?.id_slug || sede?.id || String(sede);
-    
+
     if (typeof locationStore.setCurrentSedeId === 'function') {
       locationStore.setCurrentSedeId(val);
     } else if (typeof locationStore.setSedeId === 'function') {
@@ -48,57 +81,89 @@ export function App() {
     }
   };
 
-  // Cargar productos y categorías dinámicas desde la API de Django
-  useEffect(() => {
-    const fetchCatalogo = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-        
-        const response = await fetch(`${apiUrl}/api/productos/`);
-        if (!response.ok) {
-          throw new Error('Error al obtener la lista de productos');
-        }
-        const data = await response.json();
-        
-        const productosFormateados = data.map((prod: any) => ({
+  // Helper para normalizar la URL de imagen (Supabase / Django / Unsplash)
+  const resolveImageUrl = (rawImage: any) => {
+    if (!rawImage || rawImage === 'null' || rawImage === 'undefined') {
+      return 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500';
+    }
+
+    const imgStr = String(rawImage);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+    if (imgStr.startsWith('http://') || imgStr.startsWith('https://')) {
+      if (imgStr.includes('127.0.0.1:8000') || imgStr.includes('localhost:8000')) {
+        const cleanPath = imgStr.replace(/^https?:\/\/[^\/]+/, '');
+        return `${apiUrl}${cleanPath}`;
+      }
+      return imgStr;
+    }
+
+    let path = imgStr.startsWith('/') ? imgStr : `/${imgStr}`;
+    if (!path.startsWith('/media/')) {
+      path = `/media${path}`;
+    }
+
+    return `${apiUrl}${path}`;
+  };
+
+  // Cargar productos y categorías dinámicas desde la API
+  const fetchCatalogo = async () => {
+    try {
+      setLoading(true);
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+      const response = await fetch(`${apiUrl}/api/productos/`);
+      if (!response.ok) {
+        throw new Error('Error al obtener la lista de productos');
+      }
+      const data = await response.json();
+
+      const productosFormateados = data.map((prod: any) => {
+        const rawImg = prod.imagen_url || prod.imagen;
+        const finalImgUrl = resolveImageUrl(rawImg);
+
+        return {
           ...prod,
+          imagen: finalImgUrl,
+          imagen_url: finalImgUrl,
           precio_usd: parseFloat(prod.precio_usd) || 0,
           precio_bs: parseFloat(prod.precio_bs) || 0,
-        }));
+        };
+      });
 
-        setProductos(productosFormateados);
+      setProductos(productosFormateados);
 
-        const nombresCategorias = Array.from(
-          new Set(
-            data
-              .map((p: any) => p.categoria_nombre || p.categoria?.nombre || p.categoria)
-              .filter(Boolean)
-          )
-        );
+      const nombresCategorias = Array.from(
+        new Set(
+          data
+            .map((p: any) => p.categoria_nombre || p.categoria?.nombre || p.categoria)
+            .filter(Boolean)
+        )
+      );
 
-        const listaCats = [
-          { id: 'TODOS', nombre: 'Todas las Categorías' },
-          ...nombresCategorias.map((c: any) => ({
-            id: String(c).toUpperCase(),
-            nombre: String(c),
-          })),
-        ];
+      const listaCats = [
+        { id: 'TODOS', nombre: 'Todas las Categorías' },
+        ...nombresCategorias.map((c: any) => ({
+          id: String(c).toUpperCase(),
+          nombre: String(c),
+        })),
+      ];
 
-        setCategoriasDB(listaCats);
-      } catch (err: any) {
-        console.error(err);
-        setError('No se pudieron cargar los datos del servidor.');
-      } finally {
-        setLoading(false);
-      }
-    };
+      setCategoriasDB(listaCats);
+    } catch (err: any) {
+      console.error(err);
+      setError('No se pudieron cargar los datos del servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchCatalogo();
   }, []);
 
   // Lógica de Filtrado por Sede Seleccionada + Búsqueda + Categoría
   const productosFiltrados = productos.filter((prod: any) => {
-    // 1. FILTRO DE SEDE MULTIFORMATO
     const sedesDelProducto = prod.sedes_disponibles || prod.sedes || [];
 
     if (currentSedeId) {
@@ -120,28 +185,24 @@ export function App() {
       if (!perteneceAEstaSede) return false;
     }
 
-    // 2. FILTRO DE BÚSQUEDA
     const query = searchQuery.toLowerCase();
     const categoriaProd = String(prod.categoria_nombre || prod.categoria?.nombre || prod.categoria || '').toLowerCase();
-    
-    const coincideBusqueda = 
+
+    const coincideBusqueda =
       prod.nombre.toLowerCase().includes(query) ||
       categoriaProd.includes(query) ||
       (prod.descripcion && prod.descripcion.toLowerCase().includes(query));
 
-    // 3. FILTRO DE CATEGORÍA
-    const coincideCategoria = 
-      selectedCategory === 'TODOS' || 
+    const coincideCategoria =
+      selectedCategory === 'TODOS' ||
       categoriaProd.toUpperCase().includes(selectedCategory.toUpperCase());
 
     return coincideBusqueda && coincideCategoria;
   });
 
-  // Cálculos del carrito
   const totalUSD = cart.reduce((acc, item) => acc + item.producto.precio_usd * item.cantidad, 0);
   const totalItems = cart.reduce((acc, item) => acc + item.cantidad, 0);
 
-  // Temporizador para "Ofertas de Medianoche"
   const [timeLeft, setTimeLeft] = useState({ hours: 3, minutes: 45, seconds: 8 });
 
   useEffect(() => {
@@ -158,8 +219,13 @@ export function App() {
 
   const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
-  // VISTA 2: CHECKOUT
-  if (view === 'checkout') {
+  // VISTA PROVEEDOR
+  if (view === 'proveedor') {
+    return <VendorDashboard onBack={() => setView('home')} />;
+  }
+
+  // VISTA CHECKOUT (Solo si NO es proveedor)
+  if (view === 'checkout' && !esProveedor) {
     return (
       <>
         <Checkout
@@ -183,26 +249,24 @@ export function App() {
     );
   }
 
-  // VISTA 1: CATÁLOGO Y PANTALLA PRINCIPAL
   return (
     <div className="min-h-screen bg-[#0d0c0a] text-neutral-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-neutral-950">
       <div>
-        {/* Navbar */}
-        <Navbar 
+        <Navbar
           onSearch={(query) => setSearchQuery(query)}
           selectedCategory={selectedCategory}
           onCategoryChange={(cat) => setSelectedCategory(cat)}
           categorias={categoriasDB}
           onOpenTracking={() => setShowTracking(true)}
+          onOpenVendorDashboard={() => setView('proveedor')}
+          onOpenAuthModal={() => setIsAuthOpen(true)}
         />
 
-        {/* Hero Banner enlazado al handler seguro */}
-        <Hero 
+        <Hero
           sedeSeleccionadaSlug={currentSedeId}
           onSelectSede={handleSelectSede}
         />
 
-        {/* Sección Ofertas de Medianoche */}
         <main id="catalogo" className="max-w-7xl mx-auto px-6 py-12">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 border-b border-[#262016] pb-6">
             <div>
@@ -215,7 +279,6 @@ export function App() {
               </p>
             </div>
 
-            {/* Reloj Cuenta Regresiva */}
             <div className="bg-[#181510] border border-[#2e2619] rounded-xl px-4 py-2 flex items-center gap-3 self-start md:self-auto">
               <span className="text-neutral-400 text-xs font-semibold uppercase tracking-wider">
                 Termina en:
@@ -236,7 +299,6 @@ export function App() {
             </div>
           </div>
 
-          {/* Grid de Productos Filtrados */}
           {loading ? (
             <div className="text-center py-12 text-amber-400 font-bold">
               Cargando catálogo desde el servidor...
@@ -264,7 +326,6 @@ export function App() {
         </main>
       </div>
 
-      {/* Botón Flotante para Rastrear Delivery */}
       <div className="fixed bottom-6 left-6 z-40">
         <button
           onClick={() => setShowTracking(true)}
@@ -280,8 +341,21 @@ export function App() {
         </button>
       </div>
 
-      {/* Widget Flotante del Carrito */}
-      {totalItems > 0 && (
+      {/* Botón flotante para proveedores */}
+      {currentUser?.rol === 'PROVEEDOR' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+          <button
+            onClick={() => setIsAddProductOpen(true)}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-black px-6 py-3.5 rounded-full shadow-2xl shadow-amber-500/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer border border-amber-300 hover:scale-105"
+          >
+            <Plus size={20} className="stroke-[3]" />
+            <span className="text-xs uppercase tracking-wider">Añadir Producto</span>
+          </button>
+        </div>
+      )}
+
+      {/* Widget flotante del carrito */}
+      {totalItems > 0 && !esProveedor && (
         <div className="fixed bottom-6 right-6 z-40">
           <button
             onClick={() => setView('checkout')}
@@ -305,7 +379,6 @@ export function App() {
         </div>
       )}
 
-      {/* Modal Detalle de Producto */}
       {selectedProduct && (
         <ProductDetailModal
           producto={selectedProduct}
@@ -313,14 +386,25 @@ export function App() {
         />
       )}
 
-      {/* Modal de Seguimiento / Delivery */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccessLogin={(user) => setCurrentUser(user)}
+      />
+
+      <AddProductModal
+        isOpen={isAddProductOpen}
+        onClose={() => setIsAddProductOpen(false)}
+        onProductAdded={fetchCatalogo}
+        categorias={categoriasDB}
+      />
+
       {showTracking && (
         <OrderTrackingModal
           onClose={() => setShowTracking(false)}
         />
       )}
 
-      {/* Footer */}
       <footer className="bg-[#080706] border-t border-[#1f1a12] py-8 px-6 mt-16 text-neutral-500 text-xs">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div>

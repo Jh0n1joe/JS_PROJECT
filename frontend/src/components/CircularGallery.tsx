@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Clock, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 
 export interface Sede {
@@ -21,6 +21,23 @@ interface CircularGalleryProps {
 
 const IMAGEN_POR_DEFECTO = 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=600&q=80';
 
+// Helper para normalizar las URLs de imágenes de Sedes
+const getSedeImageUrl = (sede: Sede) => {
+  if (!sede?.imagen) return IMAGEN_POR_DEFECTO;
+
+  const imgStr = String(sede.imagen);
+
+  // 1. Si la imagen proviene de Supabase u otro CDN externo
+  if (imgStr.startsWith('http://') || imgStr.startsWith('https://')) {
+    return imgStr;
+  }
+
+  // 2. Si es una ruta relativa local guardada por Django (ej: /media/sedes/foto.jpg)
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const cleanPath = imgStr.startsWith('/') ? imgStr : `/${imgStr}`;
+  return `${apiUrl}${cleanPath}`;
+};
+
 export default function CircularGallery({
   sedes = [],
   sedeSeleccionadaSlug,
@@ -39,7 +56,6 @@ export default function CircularGallery({
     setCurrentIndex((prev) => (prev - 1 + sedes.length) % sedes.length);
   };
 
-  // Función idéntica a la que ejecutaban las tarjetas de abajo
   const handleSelectSedeCard = (sede: Sede) => {
     localStorage.setItem('user_selected_sede_slug', sede.id_slug);
     localStorage.setItem('user_delivery_address', sede.nombre);
@@ -87,6 +103,9 @@ export default function CircularGallery({
           const opacity = isCenter ? 1 : Math.abs(offset) === 1 ? 0.6 : 0.2;
           const zIndex = 20 - Math.abs(offset) * 5;
 
+          // Obtener la URL de imagen formateada para esta sede
+          const sedeImageUrl = getSedeImageUrl(sede);
+
           return (
             <div
               key={sede.id}
@@ -113,9 +132,12 @@ export default function CircularGallery({
                 {/* Imagen de la Sede con Badge de Tiempo */}
                 <div className="relative h-36 w-full rounded-xl overflow-hidden mb-3.5 bg-neutral-900">
                   <img
-                    src={sede.imagen || IMAGEN_POR_DEFECTO}
+                    src={sedeImageUrl}
                     alt={sede.nombre}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = IMAGEN_POR_DEFECTO;
+                    }}
                   />
                   <div className="absolute top-2.5 right-2.5 bg-neutral-950/85 backdrop-blur-md border border-amber-400/40 text-amber-400 font-black text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
                     <Clock size={11} className="animate-pulse" />
@@ -139,7 +161,7 @@ export default function CircularGallery({
               {/* Botón Acción */}
               <div
                 onClick={(e) => {
-                  e.stopPropagation(); // Evita conflictos al hacer clic directo en el botón
+                  e.stopPropagation();
                   if (!isCenter) {
                     setCurrentIndex(index);
                   }

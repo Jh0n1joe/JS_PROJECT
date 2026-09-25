@@ -1,6 +1,23 @@
 // frontend/src/components/Navbar.tsx
-import React, { useState } from 'react';
-import { MapPin, Search, Sparkles, ShoppingBag, Loader2, X, Package, Calendar, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  MapPin, 
+  Search, 
+  Sparkles, 
+  ShoppingBag, 
+  Loader2, 
+  X, 
+  Package, 
+  Calendar, 
+  CheckCircle2, 
+  AlertCircle, 
+  Filter,
+  User,
+  Store,
+  LogOut,
+  ChevronDown,
+  Settings
+} from 'lucide-react';
 import { Logo } from './Logo';
 
 interface NavbarProps {
@@ -10,32 +27,57 @@ interface NavbarProps {
   selectedCategory?: string;
   categorias?: { id: string; nombre: string }[];
   onOpenTracking?: () => void;
+  onOpenAuthModal?: () => void; // Callback para abrir el modal de Auth/Login
+  onOpenVendorDashboard?: () => void; // Callback para ir al panel de Proveedor
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
-  onOpenCart, 
   onSearch, 
   onCategoryChange,
   selectedCategory = 'TODOS',
   categorias = [{ id: 'TODOS', nombre: 'Todas las Categorías' }],
-  onOpenTracking 
+  onOpenAuthModal,
+  onOpenVendorDashboard
 }) => {
   const [locationText, setLocationText] = useState('Barcelona, Anzoátegui');
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Estado para Sesión del Usuario y Menú Desplegable
+  const [user, setUser] = useState<any>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
   // Estado para el modal de Historial
   const [showHistory, setShowHistory] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
+  // Cargar usuario desde localStorage al montar el componente
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error al parsear usuario:', e);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    setShowUserMenu(false);
+    window.location.reload();
+  };
+
   // Cargar únicamente los pedidos del usuario actual
   const loadOrders = async () => {
     setLoadingOrders(true);
     setOrdersError(null);
     try {
-      // Obtener los IDs guardados al realizar Checkout en este dispositivo
       const localIds: number[] = JSON.parse(localStorage.getItem('my_orders') || '[]');
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -48,12 +90,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       const data = await response.json();
       const listaCompleta: any[] = Array.isArray(data) ? data : data.results || [];
 
-      // Filtrar para mostrar solo las órdenes del cliente
       const misPedidos = localIds.length > 0
         ? listaCompleta.filter((order) => localIds.includes(order.id))
         : listaCompleta;
 
-      // Ordenar descendente (más reciente primero)
       misPedidos.sort((a, b) => b.id - a.id);
       setOrders(misPedidos);
     } catch (e: any) {
@@ -175,7 +215,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
 
-            {/* SELECTOR DE FILTRO DE CATEGORÍA (CARGADO DESDE DJANGO) */}
+            {/* SELECTOR DE FILTRO DE CATEGORÍA */}
             <div className="relative shrink-0 hidden md:block">
               <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none" />
               <select
@@ -193,13 +233,101 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           </div>
 
-          {/* SECCIÓN DERECHA */}
+          {/* SECCIÓN DERECHA: EXPRESS + MIS PEDIDOS + ICONO/PERFIL USUARIO */}
           <div className="flex items-center gap-3 shrink-0">
             
             {/* BADGE EXPRESS 24/7 */}
             <div className="hidden lg:flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/40 text-amber-400 px-3.5 py-2 rounded-full text-xs font-bold tracking-wide">
               <Sparkles size={14} />
               <span>Express 24/7</span>
+            </div>
+
+            {/* SI ES CLIENTE O NO REGISTRADO: Muestra "Mis Pedidos" */}
+            {(!user || user.rol === 'CLIENTE') && (
+              <button
+                onClick={handleOpenHistory}
+                type="button"
+                className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/40 text-white font-bold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 cursor-pointer"
+              >
+                <ShoppingBag size={16} className="text-amber-400" />
+                <span className="hidden sm:inline">Mis Pedidos</span>
+              </button>
+            )}
+
+            {/* ICONO Y MENÚ DESPLEGABLE DE USUARIO */}
+            <div className="relative">
+              {user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    type="button"
+                    className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/50 px-3 py-2 rounded-full transition-all cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 font-bold text-xs">
+                      {user.rol === 'PROVEEDOR' ? <Store size={15} /> : <User size={15} />}
+                    </div>
+                    <div className="text-left hidden md:block">
+                      <p className="text-xs font-bold text-white leading-none">{user.nombre}</p>
+                      <span className="text-[10px] text-amber-400 font-medium">
+                        {user.rol === 'PROVEEDOR' ? 'Proveedor' : 'Cliente'}
+                      </span>
+                    </div>
+                    <ChevronDown size={14} className="text-neutral-400" />
+                  </button>
+
+                  {/* DESPLEGABLE DEL PERFIL */}
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-[#14120e] border border-[#2a2419] rounded-xl shadow-2xl py-2 z-50 space-y-1">
+                      <div className="px-3 py-1.5 border-b border-[#221c13] text-xs">
+                        <p className="text-white font-bold truncate">{user.nombre}</p>
+                        <p className="text-neutral-500 text-[10px] truncate">{user.email}</p>
+                      </div>
+
+                      {user.rol === 'CLIENTE' ? (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            handleOpenHistory();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Package size={14} /> Mis Pedidos
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            if (onOpenVendorDashboard) onOpenVendorDashboard();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Settings size={14} /> Gestionar Mi Sede
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors border-t border-[#221c13] cursor-pointer"
+                      >
+                        <LogOut size={14} /> Cerrar Sesión
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* BOTÓN INGRESAR / REGISTRO SI NO HA INICIADO SESIÓN */
+                <button
+                  onClick={onOpenAuthModal}
+                  type="button"
+                  className="bg-amber-400 hover:bg-amber-500 text-neutral-950 font-black text-xs px-4 py-2.5 rounded-full flex items-center gap-2 transition-all shadow-md shadow-amber-400/10 cursor-pointer active:scale-95"
+                >
+                  <User size={16} />
+                  <span className="hidden sm:inline">Ingresar</span>
+                </button>
+              )}
             </div>
 
             {/* BOTÓN MIS PEDIDOS */}
@@ -209,8 +337,62 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center gap-2 bg-[#181510] hover:bg-[#221d16] border border-[#2e2619] hover:border-amber-500/40 text-white font-bold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 cursor-pointer"
             >
               <ShoppingBag size={16} className="text-amber-400" />
-              <span>Mis Pedidos</span>
+              <span className="hidden sm:inline">Mis Pedidos</span>
             </button>
+
+            {/* AUTENTICACIÓN / MENÚ DE USUARIO */}
+            {user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  type="button"
+                  className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold text-xs px-3.5 py-2.5 rounded-full transition-all cursor-pointer"
+                >
+                  <User size={15} />
+                  <span className="max-w-[100px] truncate">{user.nombre}</span>
+                  <ChevronDown size={14} className={`transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* DROPDOWN DEL USUARIO */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-[#12100d] border border-[#2e2619] rounded-xl shadow-2xl py-1.5 z-50 animate-fade-in">
+                    <div className="px-3 py-2 border-b border-[#262016]">
+                      <p className="text-xs font-bold text-white truncate">{user.nombre}</p>
+                      <p className="text-[10px] text-amber-400/80 font-mono uppercase">{user.rol || 'CLIENTE'}</p>
+                    </div>
+
+                    {user.rol === 'PROVEEDOR' && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          if (onOpenVendorDashboard) onOpenVendorDashboard();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-[#221d15] hover:text-amber-400 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Settings size={14} /> Gestionar Mi Sede
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-[#221d15] flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <LogOut size={14} /> Cerrar Sesión
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={onOpenAuthModal}
+                type="button"
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-full transition-all active:scale-95 shadow-lg shadow-amber-500/10 cursor-pointer"
+              >
+                <User size={16} />
+                <span>Iniciar Sesión</span>
+              </button>
+            )}
+
           </div>
 
         </div>
@@ -288,7 +470,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </span>
                       </div>
 
-                      {/* Productos incluidos en la compra */}
+                      {/* Productos incluidos */}
                       {itemsList.length > 0 && (
                         <div className="bg-[#0e0d0a] p-2.5 rounded-lg border border-[#221c13] space-y-1 my-2">
                           {itemsList.map((item: any, i: number) => (

@@ -17,9 +17,29 @@ from .models import (
 
 
 class SedeSerializer(serializers.ModelSerializer):
+    imagen = serializers.SerializerMethodField()
+
     class Meta:
         model = Sede
-        fields = ('id', 'id_slug', 'nombre', 'direccion', 'tiempo_estimado', 'distancia', 'activa')
+        fields = ('id', 'id_slug', 'nombre', 'direccion', 'tiempo_estimado', 'distancia', 'imagen', 'activa')
+
+    def get_imagen(self, obj):
+        if not obj.imagen:
+            return None
+        
+        imagen_str = str(obj.imagen)
+        
+        if imagen_str.startswith('http://') or imagen_str.startswith('https://'):
+            return imagen_str
+            
+        try:
+            url_relativa = obj.imagen.url
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(url_relativa)
+            return f"http://127.0.0.1:8000{url_relativa}"
+        except Exception:
+            return None
 
 
 class TasaCambioSerializer(serializers.ModelSerializer):
@@ -41,10 +61,11 @@ class MaridajeSerializer(serializers.ModelSerializer):
 
 
 class ProductoSerializer(serializers.ModelSerializer):
-    categoria = serializers.CharField(source='categoria.nombre', read_only=True)
+    categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True)
     precio_bs = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     maridajes = MaridajeSerializer(many=True, read_only=True)
-    # Devuelve la lista de slugs de las sedes asociadas al producto (ej: ['barcelona-centro', 'lecheria-plaza'])
+    imagen = serializers.SerializerMethodField()
+
     sedes_disponibles = serializers.SlugRelatedField(
         many=True,
         read_only=True,
@@ -59,6 +80,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             'nombre',
             'descripcion',
             'categoria',
+            'categoria_nombre',
             'stock',
             'precio_usd',
             'precio_bs',
@@ -68,6 +90,27 @@ class ProductoSerializer(serializers.ModelSerializer):
             'maridajes',
             'sedes_disponibles',
         )
+
+    def get_imagen(self, obj):
+        if not obj.imagen:
+            return None
+        
+        imagen_str = str(obj.imagen)
+
+        if imagen_str.startswith('http://') or imagen_str.startswith('https://'):
+            if '127.0.0.1:8000' in imagen_str or 'localhost:8000' in imagen_str:
+                path_limpio = imagen_str.split('/media/')[-1]
+                return f"http://127.0.0.1:8000/media/{path_limpio}"
+            return imagen_str
+
+        try:
+            url_relativa = obj.imagen.url
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(url_relativa)
+            return f"http://127.0.0.1:8000{url_relativa}"
+        except Exception:
+            return None
 
 
 class DetallePedidoSerializer(serializers.ModelSerializer):
@@ -84,11 +127,9 @@ class DetallePedidoSerializer(serializers.ModelSerializer):
 
 
 class ComprobantePagoSerializer(serializers.ModelSerializer):
-    captura_url = serializers.CharField(read_only=True, required=False, allow_null=True)
-
     class Meta:
         model = ComprobantePago
-        fields = ('numero_referencia', 'banco_origen', 'monto_pagado_bs', 'captura_url')
+        fields = ('numero_referencia', 'banco_origen', 'monto_pagado_bs')
 
 
 class RepartidorSerializer(serializers.ModelSerializer):
@@ -135,6 +176,7 @@ class PedidoSerializer(serializers.ModelSerializer):
 
 
 class PedidoCreateSerializer(serializers.ModelSerializer):
+    sede = serializers.IntegerField(source='sede_id', required=False, allow_null=True, write_only=True)
     sede_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     items = serializers.ListField(child=serializers.DictField(), write_only=True)
     comprobante = serializers.CharField(
@@ -148,6 +190,7 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pedido
         fields = (
+            'sede',
             'sede_id',
             'nombre_cliente',
             'telefono',
@@ -173,9 +216,8 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
                     'comprobante': 'Para Pago Móvil debes enviar exactamente 4 dígitos numéricos.'
                 })
         elif comprobante:
-            raise serializers.ValidationError({
-                'comprobante': 'El comprobante solo aplica al método Pago Móvil.'
-            })
+            attrs['comprobante'] = None
+
         return attrs
 
     def create(self, validated_data):
@@ -191,12 +233,14 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
             productos_vistos = set()
 
             for item in items_data:
+                raw_prod_id = item.get('producto') or item.get('producto_id')
+                
                 try:
-                    producto_id = int(item['producto_id'])
+                    producto_id = int(raw_prod_id)
                     cantidad = int(item['cantidad'])
                 except (KeyError, TypeError, ValueError) as exc:
                     raise serializers.ValidationError(
-                        'Cada ítem debe incluir producto_id y cantidad válidos.'
+                        'Cada ítem debe incluir un ID de producto y cantidad válidos.'
                     ) from exc
 
                 if cantidad <= 0:
@@ -207,6 +251,7 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
                 producto = Producto.objects.select_for_update().filter(
                     pk=producto_id, activo=True,
                 ).first()
+                
                 if producto is None:
                     raise serializers.ValidationError(
                         f'El producto ID {producto_id} no existe o está inactivo.'
@@ -222,7 +267,6 @@ class PedidoCreateSerializer(serializers.ModelSerializer):
 
             total_bs = (total_usd * tasa_valor).quantize(Decimal('0.01'))
             
-            # Obtener instancia de Sede si se envió sede_id
             sede_obj = None
             if sede_id:
                 sede_obj = Sede.objects.filter(pk=sede_id, activa=True).first()

@@ -9,7 +9,7 @@ interface Props {
   onSelect: (producto: Producto) => void;
 }
 
-export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect }) => {
+export const OfferCard: React.FC<Props> = ({ producto, onSelect }) => {
   const addToCart = useCartStore((state) => state.addToCart);
 
   // 1. Evaluación estricta de Stock
@@ -17,6 +17,16 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
 
   // 2. Un producto está disponible para comprar si tiene stock
   const sePuedeComprar = tieneStock;
+
+  // 3. Resolución segura de la URL (si ya vino procesada de App.tsx la usa directa, si no, aplica el fallback)
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const rawImage = producto.imagen || producto.imagen_url;
+
+  const imageUrl = rawImage
+    ? rawImage.startsWith('http')
+      ? rawImage
+      : `${apiUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+    : 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500';
 
   return (
     <div 
@@ -57,7 +67,7 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
           }`}
         >
           <img
-            src={producto.imagen || producto.imagen_url || "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500"}
+            src={imageUrl}
             alt={producto.nombre}
             className={`max-h-full object-contain transition-transform duration-300 ${
               sePuedeComprar ? 'group-hover:scale-105' : 'grayscale'
@@ -79,7 +89,9 @@ export const OfferCard: React.FC<Props> = ({ producto, selectedSede, onSelect })
             {producto.nombre}
           </h3>
           <p className="text-neutral-500 text-xs mt-0.5 font-medium line-clamp-1">
-            {producto.subcategoria || producto.categoria}
+            {typeof producto.categoria === 'object'
+              ? (producto.categoria as any).nombre
+              : producto.subcategoria || producto.categoria}
           </p>
         </div>
       </div>
